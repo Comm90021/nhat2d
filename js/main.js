@@ -4,6 +4,8 @@ import { levelStats, progress } from './learning.js';
 import { ending } from './days.js';
 import { nextSessionText } from './exam.js';
 import { journeyHtml } from './career.js';
+import { openPhone } from './phone.js';
+import { PEOPLE, stageName } from './social.js';
 import { JOBS, LOOK } from './data.js';
 import { input, initInput } from './input.js';
 import { modal, showHud, updateHud, toast, modalOpen, esc } from './ui.js';
@@ -144,6 +146,8 @@ const HELP_HTML = `<ul class="help">
   <li>🧾 Lương trả vào <b>Chủ Nhật</b> (trừ tiền nhà, điện nước). Ra <b>tiệm chuyển tiền</b> gửi về để trả nợ.</li>
   <li>🍙 Nhớ ăn uống, ngủ trước <b>0:00</b>. Sức khỏe về 0 sẽ phải nhập viện.</li>
   <li>🗣️ <b>Tiếng Nhật:</b> học ở lớp tối, tự học ở ký túc xá, nói chuyện với bà Sato. Trả lời đúng liên tục được nhân điểm 🔥. Muốn có <b>chứng chỉ JLPT</b> phải đăng ký thi (tháng 7 và tháng 12).</li>
+  <li>💞 <b>Quan hệ:</b> nói chuyện, tặng quà, rủ đi ăn để thân hơn. Người thân giúp bạn rất nhiều: gợi ý khi làm, giới thiệu việc, học nhanh hơn. Mở 📱 → "Ai ở đâu?" để biết gặp ai ở đâu. Cẩn thận người lạ rủ vay tiền, góp vốn, làm chui!</li>
+  <li>🛂 <b>Visa:</b> năm đầu phải đỗ thi tay nghề 基礎級 ở chỗ làm để được gia hạn. Sau đó có thể lên TTS số 3, Kỹ năng đặc định, thậm chí thường trú.</li>
   <li>🧩 Ca làm là các câu hỏi tình huống. Thích chơi mini-game thì bật trong menu ⏸.</li>
   <li>➡️ Mũi tên vàng cạnh nhân vật chỉ chỗ nên đến tiếp theo.</li>
 </ul>`;
@@ -176,6 +180,7 @@ function bookHtml(S) {
   const log = S.log.slice(0, 10).map((l) => `<li><span class="dim">Ngày ${l.d}:</span> ${esc(l.t)}</li>`).join('');
   return `<div class="payslip">${row('💴 Tiền mặt', yen(S.money))}${row('🧾 Lương chờ lĩnh', yen(S.wage))}${row('🏦 Nợ ở quê', vnd(Math.max(0, S.debt)))}${row('💸 Đã gửi về', vnd(S.stats.sentVnd))}${row('📅 Thời gian ở Nhật', `Năm ${year(S)} · ${S.day} ngày`)}${st}${row('👵 Câu bà Sato đã dạy', S.learned.length)}${row('🏭 Ca đã làm / đi muộn / nghỉ', `${S.stats.shifts} / ${S.stats.lates} / ${S.stats.absences}`)}</div>
     <h3>🛂 Visa & nghề nghiệp</h3>${journeyHtml(S)}
+    <h3>💞 Mối quan hệ</h3><div class="payslip">${Object.keys(PEOPLE).filter((id) => S.people && S.people[id] && S.people[id].met).map((id) => `<div class="prow"><span>${esc(PEOPLE[id].name)}</span><span>${stageName(S.people[id].aff)} · ${Math.round(S.people[id].aff)}</span></div>`).join('') || '<div class="dim">Chưa quen ai — mở 📱 → "Ai ở đâu?"</div>'}</div>
     <h3>🗣️ Tiếng Nhật — trình độ ${jpLevel(S)}${bestCert(S) ? ` · chứng chỉ ${bestCert(S)}` : ''}</h3>
     <div class="payslip">${levelStats(S.lang).map((l) => `<div class="prow"><span>${l.reached ? '✅' : '⬜'} ${l.lv}</span><span>${Math.min(100, Math.round((l.xp / l.need) * 100))}% · chính xác ${Math.round(l.acc * 100)}%</span></div>`).join('')}
     <div class="prow"><span>🔥 Chuỗi đúng dài nhất</span><span>${S.lang.best}</span></div></div>
@@ -183,6 +188,7 @@ function bookHtml(S) {
     <p class="dim">Đồ dùng: ${items.length ? items.join(' · ') : 'chưa có gì'}</p>
     ${log ? `<h3>Nhật ký gần đây</h3><ul class="log">${log}</ul>` : ''}`;
 }
+$('btn-phone').onclick = () => { if (G.S && !G.busy) runFlow(() => openPhone(G.S)); };
 $('btn-book').onclick = () => { if (G.S && !G.busy) runFlow(() => modal({ who: `Sổ tay của ${G.S.name}`, title: '📒 Sổ tay', html: bookHtml(G.S), wide: true, ok: 'Đóng' })); };
 $('btn-menu').onclick = () => {
   if (!G.S || G.busy) return;

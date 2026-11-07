@@ -10,7 +10,8 @@ import { fixedEvent, markFixed, randomEvent, runEvent } from './events.js';
 import { sfx } from './audio.js';
 import { workQuiz } from './quiz.js';
 import { certBonus } from './exam.js';
-import { payMul, availableTest, takeTest, TESTS, testBlockReason } from './career.js';
+import { payMul, availableTest, takeTest, TESTS, testBlockReason, visaInfo } from './career.js';
+import { atLeast, anyAtLeast } from './social.js';
 
 const SCENES = { factory: factoryScene, farm: farmScene, build: buildScene };
 
@@ -83,7 +84,7 @@ export async function startShift(S, overtime) {
   } else {
     const n = overtime ? 3 : 4;
     await modal({ who: job.place, title: overtime ? '⏱️ Ca thứ Bảy' : `${job.icon} Vào ca`, text: `Trong ca sẽ có <b>${n} tình huống</b>. Chọn cách xử lý đúng — đúng càng nhiều, đánh giá càng cao và tay nghề càng lên.`, ok: 'Bắt đầu →' });
-    const ok = await workQuiz(S, S.job, n, { who: job.place });
+    const ok = await workQuiz(S, S.job, n, { who: job.place, hint: () => atLeast(S, 'yamada', 2) && Math.random() < 0.35 });
     score = ok / n;
     S.skill[S.job] = (S.skill[S.job] || 0) + ok;
   }
@@ -125,6 +126,9 @@ export function workActions(S) {
   const job = JOBS[S.job];
   const a = [];
   const sat = (S.day - 1) % 7 === 5;
+  if (visaInfo(S).change && !S.flags.betterJob && anyAtLeast(S, ['kimura', 'mai', 'daiki', 'long'], 3)) {
+    a.push({ label: '🔁 Chuyển sang chỗ làm mới (lương +10%)', sub: 'Bạn thân giới thiệu · visa của bạn được phép đổi chỗ làm cùng ngành', run: async (s) => { s.flags.betterJob = true; addLog(s, 'Chuyển sang chỗ làm mới nhờ người quen giới thiệu'); await modal({ title: '🔁 Chỗ làm mới', text: 'Nhờ người quen giới thiệu, bạn chuyển sang một công ty cùng ngành trả lương cao hơn 10%, chế độ tốt hơn. Mối quan hệ chính là tài sản!' }); } });
+  }
   if (S.today.noWork) a.push({ label: '🚫 Hôm nay bạn được nghỉ', cond: () => 'Bão hoặc ngày đi thi' });
   else if (S.worked) a.push({ label: '✅ Đã xong ca hôm nay', cond: () => 'Mai quay lại nhé' });
   else if (isWorkday(S)) {

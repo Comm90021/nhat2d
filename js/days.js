@@ -5,6 +5,8 @@ import {
 } from './state.js';
 import { examMorning } from './exam.js';
 import { careerMorning, visaInfo } from './career.js';
+import { socialDaily, atLeast } from './social.js';
+import { loanCheck } from './community.js';
 import { levelIndex } from './learning.js';
 import { modal, chips, esc } from './ui.js';
 import { fixedEvent, markFixed, randomEvent, runEvent } from './events.js';
@@ -40,6 +42,8 @@ async function endDay(S) {
     msgs.push('❌ Hôm qua bạn nghỉ làm không phép: uy tín −12.');
     addLog(S, 'Nghỉ làm không phép');
   }
+  socialDaily(S);
+  if (S.sick > 0 && atLeast(S, 'sato', 2)) { S.full = clamp(S.full + 30); S.health = clamp(S.health + 3); msgs.push('👵 Biết bạn ốm, bà Sato mang sang một nồi cháo nóng.'); }
   if (S.sick > 0) {
     S.sick--;
     S.health = clamp(S.health - 4);
@@ -94,6 +98,7 @@ async function morning(S, msgs) {
   });
   const cr = await careerMorning(S);
   if (cr) return ending(S, cr === 'ending-home' ? 'home' : 'visa');
+  await loanCheck(S);
   if (await examMorning(S)) { save(); return; }
   const fixed = fixedEvent(S, 'morning');
   if (fixed) { markFixed(S, fixed); await runEvent(fixed); }

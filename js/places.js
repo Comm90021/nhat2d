@@ -8,6 +8,8 @@ import { modal, chips, toast } from './ui.js';
 import { sleep } from './days.js';
 import { workActions } from './work.js';
 import { sfx } from './audio.js';
+import { talkTo, peopleHere, atLeast, AVAIL, P, gain, personActions, PEOPLE } from './social.js';
+import { community } from './community.js';
 
 const H = (h, m = 0) => h * 60 + m;
 const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -37,6 +39,7 @@ const PLACES = {
         res: (s) => (s.time >= H(22) ? 'Nói chuyện vui quá, quên mất đã khuya. Tường ký túc xá mỏng lắm…' : 'Mẹ hỏi ăn uống thế nào, bố dặn giữ sức khỏe. Bạn thấy nhẹ lòng hơn.'),
       },
       { label: '📖 Tự học tiếng Nhật', sub: '3 câu hỏi · 60 phút', minutes: 60, energy: 10, run: selfStudy },
+      ...(atLeast(S, 'ha', 2) && AVAIL.ha(S) ? [{ label: '🍲 Nấu ăn chung với Hà', sub: 'Không cần nguyên liệu', minutes: 60, fx: { full: 45, mood: 6, health: 1 }, cond: (s) => (s.today.cookHa ? 'Hôm nay đã nấu rồi' : null), after: (s) => { s.today.cookHa = true; gain(s, 'ha', 2); }, res: 'Hà nấu canh chua, bạn rán cá. Bữa cơm có mùi quê nhà.' }] : []),
       ...(['ssw2', 'spouse'].includes(S.career.visa) ? [{ label: '📄 Nộp hồ sơ xin thường trú (永住)', sub: 'Lệ phí ¥10,000 · xét điều kiện', run: applyPR }] : []),
       { label: '📝 Đăng ký thi JLPT qua mạng', sub: canRegister(S) ? 'Đang mở đăng ký · lệ phí ¥7,500' : nextSessionText(S), cond: (s) => (canRegister(s) ? null : 'Chưa tới đợt đăng ký'), run: register },
     ],
@@ -52,6 +55,7 @@ const PLACES = {
       { label: '💊 Thuốc cảm', cost: 1280, minutes: 5, fx: { health: 5 }, cond: (s) => (s.sick > 0 ? null : 'Bạn không bị ốm'), after: (s) => { s.sick = 0; }, res: 'Uống thuốc, giữ ấm, bạn đỡ hẳn.' },
       { label: '🎒 Túi đồ khẩn cấp', sub: 'Nước, đồ hộp, đèn pin, pin dự phòng', cost: 3200, minutes: 10, fx: { mood: 2 }, cond: (s) => (s.flags.kit ? 'Đã có rồi' : null), after: (s) => { s.flags.kit = true; }, res: 'Nhật Bản hay có động đất và bão — chuẩn bị trước cho yên tâm.' },
       { label: '📰 Đứng đọc tạp chí (立ち読み)', minutes: 20, fx: { mood: 2, jp: 0.3 }, res: 'Bạn lật xem tạp chí, học thêm được vài chữ katakana.' },
+      ...(atLeast(G.S, 'tuan', 2) && AVAIL.tuan(G.S) ? [{ label: '🍱 Nhận cơm hộp sắp hết hạn từ Tuấn', sub: 'Miễn phí', minutes: 5, fx: { full: 40, mood: 3 }, cond: (s) => (s.today.tuanFood ? 'Hôm nay nhận rồi' : null), after: (s) => { s.today.tuanFood = true; }, res: 'Tuấn nháy mắt: "Sắp tới giờ bỏ rồi, cầm về ăn đi."' }] : []),
     ],
   },
   super: {
@@ -99,7 +103,8 @@ const PLACES = {
     closed: (S) => (S.time < H(10) || S.time >= H(19) ? 'Tiệm mở cửa 10:00 – 19:00 hằng ngày.' : null),
     desc: (S) => `Tỷ giá hôm nay: 1¥ = ${RATE}₫. Nợ còn: <b>${vnd(Math.max(0, S.debt))}</b>.`,
     actions: (S) => {
-      const a = [{ label: '💸 Gửi tiền về nhà', sub: 'Công ty có giấy phép · phí 990¥ · an toàn', run: (s) => remit(s, false) }];
+      const fee = atLeast(S, 'long', 2) ? 500 : 990;
+      const a = [{ label: '💸 Gửi tiền về nhà', sub: `Công ty có giấy phép · phí ${fee}¥ · an toàn`, run: (s) => remit(s, false) }];
       if (S.flags.chuiAd) a.push({ label: '🕶️ Gửi qua "người quen" trên mạng', sub: 'Không phí · 1¥ = 176₫ · KHÔNG có giấy phép', run: (s) => remit(s, true) });
       return a;
     },
@@ -130,12 +135,23 @@ const PLACES = {
         { label: '🪑 Ngồi nghỉ ngắm cảnh', minutes: 60, fx: { mood: 7, energy: 4 }, res: 'Bạn ngồi thả lỏng, ngắm người qua lại.' },
         { label: '🏃 Chạy bộ', minutes: 30, energy: 15, fx: { energy: -12, health: 3, mood: 3 }, res: 'Chạy vài vòng quanh hồ, người khỏe khoắn hẳn.' },
       ];
+      if (AVAIL.daiki(S)) a.unshift({ label: '⚽ Đá bóng với CLB', sub: 'Sáng Chủ Nhật · ai đến cũng được', minutes: 120, energy: 20, fx: (s) => ({ energy: -15, health: atLeast(s, 'daiki', 2) ? 7 : 4, mood: 7, full: -10 }), cond: (s) => (s.today.football ? 'Hôm nay đá rồi' : null), after: (s) => { s.today.football = true; gain(s, 'daiki', 3); }, res: 'Hai tiếng chạy hết sân, cả đội hò hét 「ナイス！」. Mệt mà vui.' });
       if (S.today.matsuri && S.time >= H(18) && S.time < H(22)) a.unshift({ label: '🏮 Đi lễ hội mùa hè', cost: 1500, minutes: 120, fx: { mood: 18, full: 20, jp: 1 }, cond: (s) => (s.today.matsuriDone ? 'Đã đi rồi' : null), after: (s) => { s.today.matsuriDone = true; }, res: 'Takoyaki, kẹo táo, múa bon odori theo tiếng trống… rồi pháo hoa rực trời. 「きれい〜！」' });
       if (si === 0 && !S.flags.hanamiSelf) a.push({ label: '🌸 Ngắm hoa anh đào', minutes: 60, fx: { mood: 10 }, after: (s) => { s.flags.hanamiSelf = true; }, res: 'Dưới tán hoa anh đào, bạn chụp tấm ảnh gửi về cho mẹ.' });
       if (si === 2 && !S.flags.momiji) a.push({ label: '🍁 Ngắm lá đỏ (紅葉)', minutes: 60, fx: { mood: 10 }, after: (s) => { s.flags.momiji = true; }, res: 'Lá phong đỏ như lửa. Người Nhật gọi đi ngắm lá là 紅葉狩り (momijigari).' });
       if (si === 3 && !S.flags.snowman && S.weather === 'snow') a.push({ label: '⛄ Đắp người tuyết', minutes: 45, fx: { mood: 10, energy: -5 }, after: (s) => { s.flags.snowman = true; }, res: 'Lần đầu thấy tuyết thật! Người tuyết của bạn hơi méo nhưng rất đáng yêu.' });
       return a;
     },
+  },
+  center: {
+    name: 'Trung tâm giao lưu quốc tế', jp: '国際交流センター',
+    closed: (S) => { const t = S.time, d = dow(S); if (d >= 5 && t >= H(10) && t < H(17)) return null; if (d === 2 && t >= H(18) && t < H(21)) return null; return 'Mở cửa: cuối tuần 10:00–17:00, tối thứ Tư 18:00–21:00.'; },
+    desc: () => 'Nơi người nước ngoài và người Nhật trong vùng gặp gỡ: lớp giao lưu ngôn ngữ, tư vấn đời sống, sinh hoạt cộng đồng.',
+    actions: (S) => [
+      { label: '🗣️ Giao lưu ngôn ngữ', sub: 'Nói chuyện với tình nguyện viên · 3 câu · 60 phút', minutes: 60, energy: 8, cond: (s) => (s.today.exchange ? 'Hôm nay đã tham gia rồi' : null), run: langExchange },
+      ...(dow(S) === 6 && S.time >= H(13) && S.time < H(17) ? [{ label: '🇻🇳 Sinh hoạt hội người Việt', sub: 'Chiều Chủ Nhật · ăn uống, chia sẻ kinh nghiệm', minutes: 120, cond: (s) => (s.today.community ? 'Hôm nay đã tham gia rồi' : null), run: community }] : []),
+      { label: '📌 Xem bảng thông tin', minutes: 5, res: '• Giao lưu ngôn ngữ: cuối tuần 10–17h, tối thứ Tư 18–21h<br>• Hội người Việt: chiều Chủ Nhật 13–17h<br>• CLB bóng đá: sáng Chủ Nhật ở công viên<br>• Tư vấn lao động bằng tiếng Việt: OTIT, nghiệp đoàn<br>• Cảnh báo: KHÔNG vay tiền, góp vốn hay nhận việc qua người lạ!' },
+    ],
   },
   river: {
     name: 'Bờ sông', jp: '川辺',
@@ -165,7 +181,7 @@ export async function openPlace(id) {
   if (closed) { await modal({ who: val(P.jp, S), title: val(P.name, S), text: `🔒 ${closed}` }); return; }
   for (;;) {
     if (G.S !== S || S.time >= MIDNIGHT) return;
-    const acts = P.actions(S);
+    const acts = [...P.actions(S), ...peopleHere(S, id)];
     const choices = acts.map((a, i) => {
       const r = reasonOf(a, S);
       return { label: a.label + (a.cost ? ` · ${yen(a.cost)}` : ''), sub: a.sub, value: i, disabled: !!r, reason: r };
@@ -233,7 +249,7 @@ async function omikuji(S) {
 
 // ---------- chuyển tiền ----------
 async function remit(S, illegal) {
-  const fee = illegal ? 0 : 990;
+  const fee = illegal ? 0 : atLeast(S, 'long', 2) ? 500 : 990;
   const rate = illegal ? 176 : RATE;
   const all = Math.floor((S.money - 5000 - fee) / 1000) * 1000;
   const amounts = [10000, 30000, 50000];
@@ -279,27 +295,24 @@ export async function talk(id) {
     await modal({ who: 'Mèo mướp', title: '🐈 ニャー', text: 'Chú mèo dụi đầu vào tay bạn rồi lăn ra đất phơi bụng.', html: chips(out) });
     return;
   }
-  if (id === 'sato') {
-    if (S.today.sato) { await modal({ who: 'Bà Sato · hàng xóm', title: '👵 Bà Sato', jp: 'また明日ね。', text: '"Hẹn mai nhé." Bà vẫy tay cười.' }); return; }
-    S.today.sato = true;
-    const next = PHRASES.find((p) => !S.learned.includes(p.id)) || PHRASES[Math.floor(Math.random() * PHRASES.length)];
-    if (!S.learned.includes(next.id)) S.learned.push(next.id);
-    await modal({
-      who: 'Bà Sato · hàng xóm', title: '👵 Bà Sato dạy tiếng Nhật', jp: next.jp,
-      text: `Bà chậm rãi đọc: <b>${next.jp}</b> (<i>${next.ro}</i>)<br>Nghĩa là: <b>${next.vi}</b>`,
-      choices: [{ label: `Lặp lại: 「${next.jp}」`, value: true, primary: true }],
-    });
-    const out = applyFx(S, { jp: 1.2, mood: 2, rel: { sato: 1 } });
-    await modal({ text: 'Bà Sato gật gù: 「上手、上手！」 (Giỏi lắm!)', html: chips(out) });
-    return;
-  }
-  if (id === 'long') {
-    if (S.today.long) { await modal({ who: 'Anh Long · senpai', title: '🧑 Anh Long', text: '"Về nghỉ sớm đi em, mai còn đi làm!"' }); return; }
-    S.today.long = true;
-    const tip = LONG_TIPS[(S.rel.long || 0) % LONG_TIPS.length];
-    const out = applyFx(S, { mood: 3, rel: { long: 1 } });
-    await modal({ who: 'Anh Long · senpai người Việt, sang trước 2 năm', title: '🧑 Anh Long', text: `"${tip}"`, html: chips(out) });
-  }
+  // Người đứng ngoài đường: menu nhỏ (nói chuyện / tặng quà / rủ đi ăn)
+  const acts = personActions(S, id);
+  if (!P(S, id).met) { await talkTo(S, id); return; }
+  const i = await modal({
+    who: PEOPLE[id].role, title: PEOPLE[id].name,
+    choices: [...acts.map((a, k) => { const r = reasonOf(a, S); return { label: a.label, sub: a.sub, value: k, disabled: !!r, reason: r }; }), { label: 'Tạm biệt', value: -1, cancel: true }],
+  });
+  if (i >= 0) await acts[i].run(S);
+}
+
+// Trung tâm giao lưu: học có tình nguyện viên, có bạn thân thì nhanh hơn
+async function langExchange(S) {
+  S.today.exchange = true;
+  const mult = (atLeast(S, 'yui', 2) || atLeast(S, 'kenta', 2)) ? 1.8 : (atLeast(S, 'yui', 1) || atLeast(S, 'kenta', 1)) ? 1.5 : 1.3;
+  const r = await studyJapanese(S, 3, { title: 'Giao lưu · Câu', mult });
+  advance(S, 60);
+  const out = applyFx(S, { energy: -8, mood: 4 });
+  await modal({ title: `Giao lưu: ${r.ok}/3 câu đúng`, text: mult > 1.3 ? `Có bạn quen giúp nên bạn học nhanh hơn (điểm ×${mult}).` : 'Kết bạn với Yui hoặc Kenta để học nhanh hơn.', html: progressHtml(r) + chips(out) });
 }
 
 export async function interact(target) {

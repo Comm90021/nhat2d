@@ -30,6 +30,7 @@ export const STAT_INFO = {
   rep: { label: 'Uy tín', icon: '⭐' },
   money: { label: 'Tiền', icon: '💴' },
   wage: { label: 'Lương chờ lĩnh', icon: '🧾' },
+  aff: { label: 'Thân thiết', icon: '💞' },
 };
 const BOUNDED = ['health', 'energy', 'mood', 'full', 'rep'];
 

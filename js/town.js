@@ -19,6 +19,7 @@ export const BUILDINGS = [
   { id: 'class', name: 'Lớp tiếng Nhật', jp: '日本語教室', x: 10, y: 18, w: 7, h: 5, door: 13, wall: '#ece3cf', roof: '#5d7a4c', style: 'hall' },
   { id: 'remit', name: 'Chuyển tiền', jp: '送金', x: 24, y: 19, w: 6, h: 4, door: 26, wall: '#e6edf5', roof: '#2f5d8a', style: 'shop' },
   { id: 'shrine', name: 'Đền Hikari', jp: '神社', x: 34, y: 17, w: 5, h: 4, door: 36, wall: '#b8382b', roof: '#3a2f2a', style: 'shrine' },
+  { id: 'center', name: 'Trung tâm giao lưu', jp: '国際交流', x: 34, y: 28, w: 7, h: 4, door: 37, wall: '#eef3f0', roof: '#7a5ea8', style: 'hall' },
 ];
 export const SPOTS = [
   { id: 'park', tx: 12, ty: 30, name: 'Công viên' },
@@ -28,6 +29,7 @@ const NPCS = [
   { id: 'sato', name: 'Bà Sato', look: { hair: '#d4d4da', shirt: '#8b6f9c', pants: '#5a4a5e', skin: '#f1d3b5', gender: 'f' } },
   { id: 'long', name: 'Anh Long', look: { hair: '#1e1a1a', shirt: '#3f88c5', pants: '#2f3a56', skin: '#e2b48c', gender: 'm' } },
   { id: 'cat', name: 'Mèo mướp', cat: true },
+  { id: 'kimura', name: 'Anh Kimura', look: { hair: '#1e1a1a', shirt: '#5b6b3a', pants: '#3d3d3d', skin: '#eac39c', gender: 'm' } },
 ];
 
 export function buildingName(b, S) { return b.id === 'work' && S ? JOBS[S.job].place : b.name; }
@@ -55,7 +57,7 @@ function buildMap() {
   for (let y = 30; y <= 32; y++) for (let x = 3; x <= 8; x++) if (!((y === 30 || y === 32) && (x === 3 || x === 8))) set(x, y, WATER);
   for (let y = 21; y <= 23; y++) for (let x = 33; x <= 39; x++) set(x, y, PLAZA);
   for (let x = 10; x <= 18; x++) set(x, 31, PATH);
-  for (let x = 23; x <= 30; x++) set(x, 33, PATH);
+  for (let x = 23; x <= 37; x++) set(x, 33, PATH);
   set(30, 34, PATH);
   for (const b of BUILDINGS) {
     for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) set(x, y, BLD);
@@ -66,7 +68,8 @@ function buildMap() {
   const reserve = (x, y, r = 1) => { for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) keep.add((x + dx) + ',' + (y + dy)); };
   for (const b of BUILDINGS) reserve(b.door, b.y + b.h);
   for (const s of SPOTS) reserve(s.tx, s.ty);
-  [[9, 11], [17, 11], [14, 30], [9, 29], [12, 31]].forEach(([x, y]) => reserve(x, y));
+  [[9, 11], [17, 11], [14, 30], [9, 29], [12, 31], [32, 11]].forEach(([x, y]) => reserve(x, y));
+  for (let x = 31; x <= 37; x++) reserve(x, 33, 0);
   for (let x = 0; x < MW; x += 2) if (at(x, 0) === GRASS) set(x, 0, TREE);
   for (let y = 1; y < MH; y++) for (let x = 0; x < MW; x++) {
     if (at(x, y) !== GRASS || keep.has(x + ',' + y)) continue;
@@ -324,6 +327,7 @@ function npcPos(S) {
   if (weekend && t >= 10 * 60 && t < 17 * 60) out.push({ ...NPCS[1], x: 14 * TS + 8, y: 30 * TS + 12, dir: 'left' });
   else if (t >= 17.5 * 60 && t < 22.5 * 60) out.push({ ...NPCS[1], x: 17 * TS + 8, y: 11 * TS + 12, dir: 'down' });
   out.push({ ...NPCS[2], x: 9 * TS + 8, y: 29 * TS + 12 });
+  if (d < 5 && t >= 17 * 60 && t < 19 * 60) out.push({ ...NPCS[3], x: 32 * TS + 8, y: 11 * TS + 12, dir: 'left' });
   return out;
 }
 
@@ -514,7 +518,7 @@ export const townScene = {
     ents.sort((a, b) => a.y - b.y).forEach((e) => e.f());
     // dấu "!" trên đầu NPC chưa nói chuyện hôm nay
     for (const n of npcs) {
-      if (n.cat || S.today[n.id]) continue;
+      if (n.cat || (S.people && S.people[n.id] && S.people[n.id].talked === S.day)) continue;
       const bob = Math.round(Math.sin(tAnim * 4));
       rect(c, '#ffcf5a', n.x - 1, n.y - 27 + bob, 3, 5); rect(c, '#ffcf5a', n.x - 1, n.y - 21 + bob, 3, 2);
     }

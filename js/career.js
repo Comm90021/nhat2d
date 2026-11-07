@@ -36,7 +36,7 @@ export function skillRank(S) {
   const s = (S.skill && S.skill[S.job]) || 0;
   return s >= 160 ? 'Tổ trưởng (班長)' : s >= 90 ? 'Thành thạo (ベテラン)' : s >= 35 ? 'Làm độc lập (一人前)' : 'Học việc (見習い)';
 }
-export const payMul = (S) => visaInfo(S).pay * (1 + Math.min(0.15, ((S.skill && S.skill[S.job]) || 0) / 1200));
+export const payMul = (S) => visaInfo(S).pay * (1 + Math.min(0.15, ((S.skill && S.skill[S.job]) || 0) / 1200)) * (S.flags.betterJob ? 1.1 : 1);
 
 function setVisa(S, visa, years) {
   const C = S.career;
@@ -171,11 +171,12 @@ async function transition(S) {
     return 'ending';
   }
   if (C.visa === 'tts2' || C.visa === 'tts3') {
-    const canT3 = C.visa === 'tts2' && C.passed.san && S.rep >= 60;
+    const backed = S.people && S.people.yamada && S.people.yamada.aff >= 70;
+    const canT3 = C.visa === 'tts2' && C.passed.san && (S.rep >= 60 || backed);
     const v = await modal({
       who: 'Hết hạn hợp đồng', title: `📄 Kết thúc ${visaInfo(S).short}`, text: needText(S),
       choices: [
-        ...(C.visa === 'tts2' ? [{ label: '🏭 Lên TTS số 3 (thêm 2 năm)', sub: 'Thực tế phải về nước ít nhất 1 tháng trước khi bắt đầu', value: 'tts3', disabled: !canT3, reason: !C.passed.san ? 'Cần đỗ 随時3級' : 'Cần uy tín ≥ 60' }] : []),
+        ...(C.visa === 'tts2' ? [{ label: '🏭 Lên TTS số 3 (thêm 2 năm)', sub: 'Thực tế phải về nước ít nhất 1 tháng trước khi bắt đầu', value: 'tts3', disabled: !canT3, reason: !C.passed.san ? 'Cần đỗ 随時3級' : 'Cần uy tín ≥ 60 hoặc được tổ trưởng bảo lãnh' }] : []),
         { label: '🛂 Chuyển sang Kỹ năng đặc định số 1', sub: 'Lương cao hơn, được đổi chỗ làm cùng ngành, gia hạn từng năm (tối đa 5 năm)', value: 'ssw1', disabled: S.rep < 35, reason: 'Uy tín quá thấp, công ty không bảo lãnh' },
         { label: '✈️ Về nước', value: 'home' },
       ],
