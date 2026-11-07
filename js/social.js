@@ -7,6 +7,8 @@ import { pickQuestion, answer } from './learning.js';
 import { ask } from './quiz.js';
 import { sfx } from './audio.js';
 import { pay } from './finance.js';
+import { stateOf, moodToday, moodInfo, adjustMood, npcsAt } from './ai/sim.js';
+import { willTalk, moodGain, acceptInvite } from './ai/rules.js';
 
 export { PEOPLE };
 // Cho phép module khác (romance.js) gắn thêm lựa chọn vào menu từng người
@@ -56,6 +58,13 @@ export async function talkTo(S, id) {
   p.talked = S.day;
   const st = stageIdx(p.aff);
   advance(S, 15);
+  // tâm trạng hôm nay quyết định có muốn nói chuyện không
+  const mood = d.traits ? moodToday(S, id) : 60;
+  const mi = d.traits ? moodInfo(S, id) : { icon: '🙂', name: 'Bình thường' };
+  if (d.traits && Math.random() > willTalk(d.traits, mood)) {
+    await modal({ who: `${d.name} · ${mi.icon} ${mi.name}`, title: `💬 ${d.name}`, text: `${esc(d.name)} trả lời cụt lủn rồi quay đi. Hôm nay có vẻ không có tâm trạng nói chuyện. Để hôm khác nhé.` });
+    return;
+  }
   let v = 3, extra = '';
   const fx = { mood: 2 };
   if (d.jp) {
@@ -75,10 +84,12 @@ export async function talkTo(S, id) {
     extra += `<br>👵 Bà dạy bạn: <b>${esc(next.jp)}</b> (<i>${esc(next.ro)}</i>) — ${esc(next.vi)}`;
     fx.jp = (fx.jp || 0) + 1;
   }
+  v = Math.round(v * (d.traits ? moodGain(mood) : 1));
+  if (d.traits) adjustMood(S, id, 3);
   const up = gain(S, id, v);
   const out = applyFx(S, fx);
   out.push(['aff', v]);
-  await modal({ who: `${d.name} · ${stageName(p.aff)}`, title: `💬 ${d.name}`, text: extra, html: chips(out) + affBar(p.aff) });
+  await modal({ who: `${d.name} · ${stageName(p.aff)} · ${mi.icon} ${mi.name}`, title: `💬 ${d.name}`, text: extra, html: chips(out) + affBar(p.aff) });
   if (up) await stageUp(S, id, up);
 }
 
@@ -113,6 +124,14 @@ export async function invite(S, id) {
   const cost = 2000;
   if (S.money < cost) { toast('Không đủ tiền đi ăn'); return; }
   if (S.time + 120 > MIDNIGHT) { toast('Khuya quá rồi'); return; }
+  if (d.traits) {
+    const st0 = stateOf(S, id);
+    const pAcc = acceptInvite(d.traits, P(S, id).aff, moodToday(S, id), st0.act === 'work' || st0.act === 'sleep');
+    if (Math.random() > pAcc) {
+      await modal({ who: d.name, title: '🙏 Từ chối', text: st0.act === 'work' ? `${esc(d.name)}: "Mình đang làm, hôm khác nhé!"` : `${esc(d.name)}: "Hôm nay mình hơi mệt… để dịp khác nha."` });
+      return;
+    }
+  }
   pay(S, cost, 'social', `Đi ăn với ${d.name}`);
   advance(S, 120);
   const up = gain(S, id, 7);
@@ -143,9 +162,10 @@ export function socialDaily(S) {
   }
 }
 
-// Ai có mặt ở đâu, lúc nào
+// Ai có mặt ở đâu do bộ quy luật AI quyết định (ai/sim.js)
+export const isAt = (S, id, place) => !!PEOPLE[id] && !!PEOPLE[id].traits && stateOf(S, id).place === place && stateOf(S, id).act !== 'sleep';
 const H = (h) => h * 60;
-export const AVAIL = {
+export const AVAIL_OLD = {
   yamada: (S) => isWorkday(S) && S.time >= H(7) && S.time < H(18),
   ha: (S) => S.time >= H(18) || dow(S) >= 5,
   tuan: (S) => S.time >= H(18) && S.time < H(23),
@@ -167,9 +187,7 @@ export const WHEN_TXT = {
   daiki: 'Công viên, sáng Chủ Nhật (đá bóng)',
 };
 export function peopleHere(S, place) {
-  return Object.entries(PEOPLE)
-    .filter(([id, d]) => d.place === place && AVAIL[id] && AVAIL[id](S))
-    .flatMap(([id]) => personActions(S, id));
+  return npcsAt(S, place).filter((id) => stateOf(S, id).act !== 'sleep').slice(0, 6).flatMap((id) => personActions(S, id).slice(0, 1));
 }
 
 export function friendsCount(S, st = 2) {

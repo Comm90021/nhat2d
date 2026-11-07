@@ -9,7 +9,12 @@ import { sleep } from './days.js';
 import { workActions } from './work.js';
 import { sfx } from './audio.js';
 import { pay } from './finance.js';
-import { talkTo, peopleHere, atLeast, AVAIL, P, gain, personActions, PEOPLE } from './social.js';
+import { talkTo, peopleHere, atLeast, isAt, P, gain, personActions, PEOPLE } from './social.js';
+import { enterBuilding, exitBuilding, travelTo, curMap } from './town.js';
+import { npcsAt, stateOf } from './ai/sim.js';
+import { AI_PLACES } from './ai/world.js';
+import { COMPANY } from './content/companies.js';
+import { INTERIOR_OF } from './content/interiors.js';
 import { community } from './community.js';
 import { fam, famGain, canVisitHome, visitHome } from './family.js';
 import { canSpouseVisa } from './romance.js';
@@ -45,7 +50,7 @@ const PLACES = {
         res: (s) => (s.time >= H(22) ? 'Nói chuyện vui quá, quên mất đã khuya. Tường ký túc xá mỏng lắm…' : 'Mẹ hỏi ăn uống thế nào, bố dặn giữ sức khỏe. Bạn thấy nhẹ lòng hơn.'),
       },
       { label: '📖 Tự học tiếng Nhật', sub: '3 câu hỏi · 60 phút', minutes: 60, energy: 10, run: selfStudy },
-      ...(atLeast(S, 'ha', 2) && AVAIL.ha(S) ? [{ label: '🍲 Nấu ăn chung với Hà', sub: 'Không cần nguyên liệu', minutes: 60, fx: { full: 45, mood: 6, health: 1 }, cond: (s) => (s.today.cookHa ? 'Hôm nay đã nấu rồi' : null), after: (s) => { s.today.cookHa = true; gain(s, 'ha', 2); }, res: 'Hà nấu canh chua, bạn rán cá. Bữa cơm có mùi quê nhà.' }] : []),
+      ...(atLeast(S, 'ha', 2) && isAt(S, 'ha', 'dorm') ? [{ label: '🍲 Nấu ăn chung với Hà', sub: 'Không cần nguyên liệu', minutes: 60, fx: { full: 45, mood: 6, health: 1 }, cond: (s) => (s.today.cookHa ? 'Hôm nay đã nấu rồi' : null), after: (s) => { s.today.cookHa = true; gain(s, 'ha', 2); }, res: 'Hà nấu canh chua, bạn rán cá. Bữa cơm có mùi quê nhà.' }] : []),
       ...(canVisitHome(S) ? [{ label: '✈️ Xin nghỉ phép về thăm nhà', sub: 'Dịp Tết / hè · 4 ngày', run: async (s) => { if (await visitHome(s)) return 'leave'; } }] : []),
       ...(canSpouseVisa(S) ? [{ label: '📄 Đổi sang visa vợ/chồng người Nhật', sub: 'Đã kết hôn với người Nhật', run: async (s) => { setVisa(s, 'spouse', 3); await modal({ who: 'Cục Quản lý Xuất nhập cảnh', title: '🛂 Visa vợ/chồng người Nhật', text: 'Hồ sơ được chấp thuận. Visa này không giới hạn ngành nghề, gia hạn 1–3 năm một lần, và sau 3 năm kết hôn có thể xin thường trú.' }); } }] : []),
       ...(['ssw2', 'spouse'].includes(S.career.visa) ? [{ label: '📄 Nộp hồ sơ xin thường trú (永住)', sub: 'Lệ phí ¥10,000 · xét điều kiện', run: applyPR }] : []),
@@ -63,7 +68,7 @@ const PLACES = {
       { label: '💊 Thuốc cảm', cost: 1280, minutes: 5, fx: { health: 5 }, cond: (s) => (s.sick > 0 ? null : 'Bạn không bị ốm'), after: (s) => { s.sick = 0; }, res: 'Uống thuốc, giữ ấm, bạn đỡ hẳn.' },
       { label: '🎒 Túi đồ khẩn cấp', sub: 'Nước, đồ hộp, đèn pin, pin dự phòng', cost: 3200, minutes: 10, fx: { mood: 2 }, cond: (s) => (s.flags.kit ? 'Đã có rồi' : null), after: (s) => { s.flags.kit = true; }, res: 'Nhật Bản hay có động đất và bão — chuẩn bị trước cho yên tâm.' },
       { label: '📰 Đứng đọc tạp chí (立ち読み)', minutes: 20, fx: { mood: 2, jp: 0.3 }, res: 'Bạn lật xem tạp chí, học thêm được vài chữ katakana.' },
-      ...(atLeast(G.S, 'tuan', 2) && AVAIL.tuan(G.S) ? [{ label: '🍱 Nhận cơm hộp sắp hết hạn từ Tuấn', sub: 'Miễn phí', minutes: 5, fx: { full: 40, mood: 3 }, cond: (s) => (s.today.tuanFood ? 'Hôm nay nhận rồi' : null), after: (s) => { s.today.tuanFood = true; }, res: 'Tuấn nháy mắt: "Sắp tới giờ bỏ rồi, cầm về ăn đi."' }] : []),
+      ...(atLeast(G.S, 'tuan', 2) && isAt(G.S, 'tuan', 'konbini') ? [{ label: '🍱 Nhận cơm hộp sắp hết hạn từ Tuấn', sub: 'Miễn phí', minutes: 5, fx: { full: 40, mood: 3 }, cond: (s) => (s.today.tuanFood ? 'Hôm nay nhận rồi' : null), after: (s) => { s.today.tuanFood = true; }, res: 'Tuấn nháy mắt: "Sắp tới giờ bỏ rồi, cầm về ăn đi."' }] : []),
     ],
   },
   super: {
@@ -143,7 +148,7 @@ const PLACES = {
         { label: '🪑 Ngồi nghỉ ngắm cảnh', minutes: 60, fx: { mood: 7, energy: 4 }, res: 'Bạn ngồi thả lỏng, ngắm người qua lại.' },
         { label: '🏃 Chạy bộ', minutes: 30, energy: 15, fx: { energy: -12, health: 3, mood: 3 }, res: 'Chạy vài vòng quanh hồ, người khỏe khoắn hẳn.' },
       ];
-      if (AVAIL.daiki(S)) a.unshift({ label: '⚽ Đá bóng với CLB', sub: 'Sáng Chủ Nhật · ai đến cũng được', minutes: 120, energy: 20, fx: (s) => ({ energy: -15, health: atLeast(s, 'daiki', 2) ? 7 : 4, mood: 7, full: -10 }), cond: (s) => (s.today.football ? 'Hôm nay đá rồi' : null), after: (s) => { s.today.football = true; gain(s, 'daiki', 3); }, res: 'Hai tiếng chạy hết sân, cả đội hò hét 「ナイス！」. Mệt mà vui.' });
+      if (npcsAt(S, 'park').some((id) => stateOf(S, id).act === 'sport')) a.unshift({ label: '⚽ Đá bóng với CLB', sub: 'Sáng Chủ Nhật · ai đến cũng được', minutes: 120, energy: 20, fx: (s) => ({ energy: -15, health: atLeast(s, 'daiki', 2) ? 7 : 4, mood: 7, full: -10 }), cond: (s) => (s.today.football ? 'Hôm nay đá rồi' : null), after: (s) => { s.today.football = true; gain(s, 'daiki', 3); }, res: 'Hai tiếng chạy hết sân, cả đội hò hét 「ナイス！」. Mệt mà vui.' });
       if (S.today.matsuri && S.time >= H(18) && S.time < H(22)) a.unshift({ label: '🏮 Đi lễ hội mùa hè', cost: 1500, minutes: 120, fx: { mood: 18, full: 20, jp: 1 }, cond: (s) => (s.today.matsuriDone ? 'Đã đi rồi' : null), after: (s) => { s.today.matsuriDone = true; }, res: 'Takoyaki, kẹo táo, múa bon odori theo tiếng trống… rồi pháo hoa rực trời. 「きれい〜！」' });
       if (si === 0 && !S.flags.hanamiSelf) a.push({ label: '🌸 Ngắm hoa anh đào', minutes: 60, fx: { mood: 10 }, after: (s) => { s.flags.hanamiSelf = true; }, res: 'Dưới tán hoa anh đào, bạn chụp tấm ảnh gửi về cho mẹ.' });
       if (si === 2 && !S.flags.momiji) a.push({ label: '🍁 Ngắm lá đỏ (紅葉)', minutes: 60, fx: { mood: 10 }, after: (s) => { s.flags.momiji = true; }, res: 'Lá phong đỏ như lửa. Người Nhật gọi đi ngắm lá là 紅葉狩り (momijigari).' });
@@ -160,6 +165,51 @@ const PLACES = {
       ...(dow(S) === 6 && S.time >= H(13) && S.time < H(17) ? [{ label: '🇻🇳 Sinh hoạt hội người Việt', sub: 'Chiều Chủ Nhật · ăn uống, chia sẻ kinh nghiệm', minutes: 120, cond: (s) => (s.today.community ? 'Hôm nay đã tham gia rồi' : null), run: community }] : []),
       { label: '📌 Xem bảng thông tin', minutes: 5, res: '• Giao lưu ngôn ngữ: cuối tuần 10–17h, tối thứ Tư 18–21h<br>• Hội người Việt: chiều Chủ Nhật 13–17h<br>• CLB bóng đá: sáng Chủ Nhật ở công viên<br>• Tư vấn lao động bằng tiếng Việt: OTIT, nghiệp đoàn<br>• Cảnh báo: KHÔNG vay tiền, góp vốn hay nhận việc qua người lạ!' },
     ],
+  },
+  station: {
+    name: 'Ga Hikari', jp: 'ひかり駅',
+    closed: (S) => (S.time < H(5, 30) ? 'Chuyến tàu đầu tiên lúc 05:30.' : null),
+    desc: () => 'Tàu địa phương 2 toa. Khu công nghiệp Minato cách 2 ga.',
+    actions: () => [{ label: '🚃 Đi tàu sang khu công nghiệp Minato', sub: '¥200 · khoảng 20 phút', cost: 200, minutes: 20, run: async (s) => { pay(s, 200, 'travel', 'Vé tàu Hikari → Minato'); advance(s, 20); await travelTo('minato'); return 'leave'; } }],
+  },
+  station2: {
+    name: 'Ga Minato', jp: 'みなと駅',
+    closed: (S) => (S.time < H(5, 30) ? 'Chuyến tàu đầu tiên lúc 05:30.' : null),
+    desc: () => 'Ga của khu công nghiệp. Giờ tan ca rất đông công nhân.',
+    actions: () => [{ label: '🚃 Về thị trấn Hikari', sub: '¥200 · khoảng 20 phút', cost: 200, minutes: 20, run: async (s) => { pay(s, 200, 'travel', 'Vé tàu Minato → Hikari'); advance(s, 20); await travelTo('town'); return 'leave'; } }],
+  },
+  ramen: {
+    name: 'Quán ramen Taishō', jp: 'ラーメン',
+    closed: (S) => (dow(S) === 0 ? 'Thứ Hai quán nghỉ.' : S.time < H(11) || S.time >= H(23) ? 'Quán mở 11:00 – 23:00.' : null),
+    desc: () => '「いらっしゃい！」 Nước dùng xương heo hầm 12 tiếng.',
+    actions: () => [
+      buy('🍜 Ramen tonkotsu', 900, { full: 55, mood: 7 }, 'Nóng hổi, béo ngậy. Người Nhật ăn mì phải xì xụp thành tiếng — không phải bất lịch sự đâu.'),
+      buy('🥟 Ramen + gyoza', 1250, { full: 70, mood: 9 }, 'Combo cứu đói sau ca làm.'),
+      buy('🍺 Bia hơi', 550, { mood: 5, health: -1 }, '「乾杯！」'),
+    ],
+  },
+  teishoku: {
+    name: 'Quán cơm Ōmori', jp: '定食屋',
+    closed: (S) => (dow(S) === 6 ? 'Chủ Nhật quán nghỉ.' : S.time < H(7) || S.time >= H(21) ? 'Quán mở 07:00 – 21:00.' : null),
+    desc: () => 'Quán cơm suất (定食) quen của công nhân khu công nghiệp.',
+    actions: () => [
+      buy('🍱 Cơm suất cá nướng', 780, { full: 55, mood: 4, health: 1 }, 'Cơm, canh miso, cá thu nướng, dưa muối — bữa cơm kiểu Nhật đầy đủ.'),
+      buy('🍛 Cơm cà ri', 650, { full: 50, mood: 4 }, 'Rẻ, no lâu.'),
+    ],
+  },
+  care: {
+    name: 'Viện dưỡng lão Hinata', jp: '介護施設',
+    closed: (S) => (S.time < H(9) || S.time >= H(19) ? 'Giờ thăm 09:00 – 19:00.' : null),
+    desc: () => 'Nhiều điều dưỡng ở đây là lao động Việt Nam theo visa Kỹ năng đặc định ngành điều dưỡng.',
+    actions: () => [
+      { label: '🤝 Làm tình nguyện: trò chuyện với các cụ', sub: '60 phút', minutes: 60, fx: { mood: 7, jp: 1.5 }, cond: (s) => (s.today.careVol ? 'Hôm nay đã làm rồi' : null), after: (s) => { s.today.careVol = true; }, res: 'Một cụ bà kể chuyện thời trẻ, bạn nghe được một nửa. Cụ nắm tay bạn: 「ありがとうね」.' },
+      { label: '📄 Hỏi về việc điều dưỡng', minutes: 10, res: 'Ngành điều dưỡng (介護) cần người. Muốn làm theo visa Kỹ năng đặc định phải thi kỹ năng điều dưỡng + tiếng Nhật điều dưỡng, cộng với JLPT N4 trở lên. (Chuyển việc sẽ có ở bản cập nhật nghề nghiệp.)' },
+    ],
+  },
+  apt: {
+    name: 'Chung cư Minato', jp: 'アパート',
+    desc: () => 'Chung cư cũ nơi nhiều lao động nước ngoài ở. Hộp thư dán chi chít tên.',
+    actions: () => [{ label: '📮 Xem hộp thư chung', minutes: 2, res: 'Tờ rơi tuyển dụng, hóa đơn điện, quảng cáo sim giá rẻ… và một tờ giấy: 「ゴミは決められた日に出してください」.' }],
   },
   river: {
     name: 'Bờ sông', jp: '川辺',
@@ -181,7 +231,10 @@ function reasonOf(a, S) {
   return null;
 }
 
-export async function openPlace(id) {
+export const placeClosed = (id, S) => (PLACES[id] && PLACES[id].closed ? PLACES[id].closed(S) : null);
+
+// keywords: chỉ hiện các lựa chọn có nhãn chứa một trong các từ khóa (dùng khi bấm vào đồ vật trong phòng)
+export async function openPlace(id, keywords = null) {
   const P = PLACES[id];
   curPlace = id;
   const S = G.S;
@@ -190,12 +243,18 @@ export async function openPlace(id) {
   if (closed) { await modal({ who: val(P.jp, S), title: val(P.name, S), text: `🔒 ${closed}` }); return; }
   for (;;) {
     if (G.S !== S || S.time >= MIDNIGHT) return;
-    const acts = [...P.actions(S), ...peopleHere(S, id)];
+    let acts = [...P.actions(S), ...(keywords ? [] : peopleHere(S, id))];
+    if (keywords) {
+      const k = keywords.map((x) => x.toLowerCase());
+      acts = acts.filter((a) => k.some((w) => a.label.toLowerCase().includes(w)));
+      if (!acts.length) { await modal({ who: val(P.jp, S), title: val(P.name, S), text: 'Lúc này không có việc gì để làm ở đây.' }); return; }
+      if (acts.length === 1 && !reasonOf(acts[0], S)) { const r = await doAction(acts[0], S); save(); return r; }
+    }
     const choices = acts.map((a, i) => {
       const r = reasonOf(a, S);
       return { label: a.label + (a.cost ? ` · ${yen(a.cost)}` : ''), sub: a.sub, value: i, disabled: !!r, reason: r };
     });
-    choices.push({ label: '🚪 Ra ngoài', value: -1, cancel: true });
+    choices.push({ label: keywords ? '✖ Thôi' : '🚪 Ra ngoài', value: -1, cancel: true });
     const i = await modal({ who: val(P.jp, S), title: val(P.name, S), text: `${val(P.desc, S)}<br><span class="dim">🕒 ${clockStr(S.time)} · 💴 ${yen(S.money)}</span>`, choices });
     if (i === -1) break;
     const r = await doAction(acts[i], S);
@@ -327,6 +386,33 @@ async function langExchange(S) {
 }
 
 export async function interact(target) {
+  const S = G.S;
   if (target.type === 'npc') return talk(target.id);
+  if (target.type === 'exit') return exitBuilding();
+  if (target.type === 'obj') {
+    const o = target.obj;
+    if (o.act === 'company') return companyMenu(S, curMap(S).key);
+    return openPlace(o.act, o.pick || null);
+  }
+  if (target.type === 'building') {
+    const id = target.id;
+    const closed = placeClosed(id, S);
+    if (closed) { await modal({ title: val(PLACES[id].name, S), text: `🔒 ${closed}` }); return; }
+    if (id === 'work' || INTERIOR_OF[id]) { sfx('door'); return enterBuilding(id); }
+    if (PLACES[id]) return openPlace(id);
+    return;
+  }
   return openPlace(target.id);
+}
+
+// Sảnh công ty của NPC (khu công nghiệp, viện dưỡng lão…)
+async function companyMenu(S, key) {
+  const C = COMPANY[key];
+  if (!C) return;
+  const staff = npcsAt(S, key).filter((id) => stateOf(S, id).act === 'work');
+  await modal({
+    who: C.jp, title: C.name, wide: true,
+    html: `<div class="payslip"><div class="prow"><span>Ngành</span><span>${C.sector}</span></div><div class="prow"><span>Lương tham khảo</span><span>${C.pay}</span></div><div class="prow"><span>Yêu cầu</span><span>${C.req}</span></div><div class="prow"><span>Visa phù hợp</span><span>${C.visa}</span></div><div class="prow"><span>Đang làm việc</span><span>${staff.length} người</span></div></div><p class="dim">${C.note}</p><p class="dim">📄 Nộp hồ sơ, phỏng vấn, chuyển việc sẽ có ở bản cập nhật nghề nghiệp (v3.3).</p>`,
+    ok: 'Đã hiểu',
+  });
 }

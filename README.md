@@ -7,7 +7,13 @@ Game mô phỏng 2D chạy trên trình duyệt: cuộc sống của một thự
 - **Lộ trình visa**: TTS số 1 → thi tay nghề 基礎級 → TTS số 2 → TTS số 3 / Kỹ năng đặc định số 1 → số 2 → thường trú. Hết hạn mà không đủ điều kiện là phải về nước.
 - **Quan hệ**: 10 nhân vật (đồng nghiệp, hàng xóm, cộng đồng Việt, giao lưu quốc tế, CLB bóng đá) với mức thân thiết và quyền lợi riêng; cả những cám dỗ như vay nóng, đa cấp, môi giới làm chui.
 - **Tình cảm & gia đình**: hẹn hò, cầu hôn, ra mắt gia đình, kết hôn, sinh con (visa quyết định con được ở Nhật hay phải về quê), áp lực gia đình, về thăm nhà dịp Tết.
-- Trả nợ 40 triệu đồng, ăn uống, ốm đau, bốn mùa, ngày đêm, sự kiện: hanami, lễ hội mùa hè, động đất, bão…
+- **Thế giới sống (v3.1)**:
+  - Hơn 55 NPC, hành vi sinh từ **quy luật** chứ không viết sẵn. Mỗi người có tính cách (hướng ngoại, dễ chịu, tận tâm, bất ổn cảm xúc…), tâm trạng thay đổi từng ngày, ca làm, thói quen, và tự chọn việc làm theo giờ, thời tiết, tâm trạng.
+  - NPC tự rủ đi chơi, hỏi vay tiền, cãi nhau, tỏ ý thích. Giữa các NPC cũng có quan hệ, sinh ra tin đồn.
+- **Nội thất đi lại được**: ký túc xá, konbini, siêu thị, phòng khám, lớp học, quán ramen, viện dưỡng lão, 9 chỗ làm… Bấm vào giường, bếp, tủ đồ, bồn rửa tay, dây chuyền, bàn quản lý để tương tác.
+- **Hai khu vực**: thị trấn Hikari và khu công nghiệp Minato, đi lại bằng tàu.
+- **Lịch 12 tháng = 84 ngày** (mỗi tuần một tháng), lương tháng có phiếu lương chi tiết, sổ thu chi.
+- Trả nợ 150 triệu đồng, ăn uống, ốm đau, bốn mùa, ngày đêm, sự kiện: hanami, lễ hội mùa hè, động đất, bão…
 - Chơi được trên máy tính (WASD / mũi tên + E) và điện thoại (cần điều khiển cảm ứng)
 
 Toàn bộ hình ảnh được vẽ bằng code (pixel art), âm thanh tạo bằng WebAudio. Không cần file ảnh hay nhạc, không có bước build.

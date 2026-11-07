@@ -8,6 +8,9 @@ import { SESSIONS, nextSessionText } from './exam.js';
 import { endText, availableTest, TESTS, visaInfo } from './career.js';
 import { romanceActions } from './romance.js';
 import { CAT, monthReport } from './finance.js';
+import { stateOf, moodInfo } from './ai/sim.js';
+import { AI_PLACES } from './ai/world.js';
+import { ACT } from './ai/rules.js';
 import { yen, vnd, month } from './state.js';
 
 const APP_MAX = 5;
@@ -23,7 +26,7 @@ export async function openPhone(S) {
         { label: '📖 App học tiếng Nhật', sub: `1 câu · 10 phút · còn ${APP_MAX - used}/${APP_MAX} lượt hôm nay`, value: 'app', disabled: used >= APP_MAX || S.time + 10 > MIDNIGHT, reason: 'Hôm nay học đủ rồi, mai tiếp nhé' },
         { label: '📅 Lịch & việc sắp tới', value: 'cal' },
         { label: '💳 Sổ chi tiêu', sub: 'Giao dịch gần đây, thu chi tháng này', value: 'ledger' },
-        { label: '👥 Ai ở đâu? (gợi ý làm quen)', value: 'where' },
+        { label: '👥 Ai đang ở đâu?', sub: 'Mỗi người có lịch sống riêng', value: 'where' },
         { label: '✖ Cất điện thoại', value: null, cancel: true },
       ],
     });
@@ -36,7 +39,7 @@ export async function openPhone(S) {
     if (v === 'contacts') await contacts(S, met);
     if (v === 'ledger') await modal({ who: 'Sổ chi tiêu', title: '💳 Thu chi', html: ledgerHtml(S), ok: 'Đóng', wide: true });
     if (v === 'cal') await modal({ who: 'Lịch', title: '📅 Lịch & việc sắp tới', html: calendarHtml(S), ok: 'Đóng' });
-    if (v === 'where') await modal({ who: 'Gợi ý', title: '👥 Có thể gặp ai, ở đâu?', html: `<ul class="log">${Object.entries(WHEN_TXT).map(([id, t]) => `<li><b>${esc(PEOPLE[id].name)}</b> — ${esc(PEOPLE[id].role)}<br><span class="dim">${esc(t)}</span></li>`).join('')}</ul>`, ok: 'Đóng' });
+    if (v === 'where') await modal({ who: 'Ngay lúc này', title: '👥 Ai đang ở đâu?', wide: true, html: whereHtml(S), ok: 'Đóng' });
   }
 }
 
@@ -68,6 +71,17 @@ async function contacts(S, met) {
     toast(`💌 ${d.name} đã trả lời tin nhắn của bạn`);
   }
   if (act === 'eat') await invite(S, id);
+}
+
+// Danh sách NPC đã quen (và các NPC chính) đang ở đâu, làm gì, tâm trạng — do AI quyết định
+function whereHtml(S) {
+  const known = Object.keys(PEOPLE).filter((id) => PEOPLE[id].traits && ((S.npc[id] && S.npc[id].met) || PEOPLE[id].core));
+  const rows = known.map((id) => {
+    const st = stateOf(S, id), pl = AI_PLACES[st.place], mi = moodInfo(S, id);
+    const met = S.npc[id] && S.npc[id].met;
+    return { id, text: `<li><b>${esc(PEOPLE[id].name)}</b> ${met ? mi.icon : ''} — ${(ACT[st.act] || ACT.home).label}${pl ? ` · <i>${esc(pl.name)}</i>${pl.map === 'minato' ? ' (khu Minato)' : ''}` : ''}<br><span class="dim">${esc(PEOPLE[id].role)}${met ? ` · tâm trạng: ${mi.name}` : ' · chưa quen'}</span></li>`, met };
+  }).sort((a, b) => b.met - a.met);
+  return `<p class="dim">Mỗi người có lịch sống riêng theo tính cách, công việc, tâm trạng và thời tiết. Tới đúng chỗ là gặp được.</p><ul class="log">${rows.map((r) => r.text).join('')}</ul>`;
 }
 
 function ledgerHtml(S) {

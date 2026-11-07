@@ -11,6 +11,8 @@ import { familyWeekly, runFamilyEvent } from './family.js';
 import { examMorning } from './exam.js';
 import { fixedEvent, markFixed, randomEvent, runEvent } from './events.js';
 import { invalidateMap } from './town.js';
+import { aiMorningMsgs, aiProactive } from './ai/proactive.js';
+import { ensureWorld } from './ai/world.js';
 
 // ---------- cuối ngày (trước khi sang ngày mới) ----------
 bus.on('day:end', 10, (S, ctx) => {
@@ -35,6 +37,7 @@ bus.on('day:end', 30, (S, ctx) => {
 }, 'ốm đau');
 
 // ---------- đầu ngày ----------
+bus.on('day:start', 5, (S, ctx) => { ensureWorld(S); aiMorningMsgs(S, ctx); }, 'NPC: tâm trạng, tin đồn, thu nợ');
 bus.on('day:start', 10, (S, ctx) => {
   if (seasonIdx(S) !== ctx.prevSeason) {
     invalidateMap();
@@ -62,6 +65,7 @@ bus.on('morning', 20, (S) => loanCheck(S), 'đòi nợ');
 bus.on('morning', 30, (S) => romanceDaily(S), 'tình cảm');
 bus.on('morning', 40, async (S, ctx) => { if (ctx.famEvent) { await runFamilyEvent(S, ctx.famEvent); return 'stop'; } return null; }, 'chuyện gia đình');
 bus.on('morning', 50, async (S) => ((await examMorning(S)) ? 'stop' : null), 'JLPT');
+bus.on('morning', 55, (S) => aiProactive(S), 'NPC chủ động');
 bus.on('morning', 60, async (S) => {
   const fixed = fixedEvent(S, 'morning');
   if (fixed) { markFixed(S, fixed); await runEvent(fixed); return null; }

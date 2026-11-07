@@ -10,6 +10,17 @@ import { fixedEvent, markFixed, randomEvent, runEvent } from './events.js';
 import { sfx } from './audio.js';
 import { workQuiz } from './quiz.js';
 import { shiftRate } from './payroll.js';
+import { player, curMap } from './town.js';
+import { TS } from './pixel.js';
+
+function standAtStation(S) {
+  const M = curMap(S);
+  if (!M || M.outdoor || !M.slots || !M.slots.work) return;
+  let best = null, bd = 1e9;
+  for (const s of M.slots.work) { const d = Math.hypot(s.x * TS + 8 - S.pos.x, s.y * TS + 12 - S.pos.y); if (d < bd) { bd = d; best = s; } }
+  if (best) { S.pos = { x: best.x * TS + 8, y: best.y * TS + 13 }; S.dir = best.face || 'up'; }
+  player.pose = 'work';
+}
 import { certBonus } from './exam.js';
 import { payMul, availableTest, takeTest, TESTS, testBlockReason, visaInfo } from './career.js';
 import { atLeast, anyAtLeast } from './social.js';
@@ -75,7 +86,18 @@ export async function startShift(S, overtime) {
   const job = JOBS[S.job];
   const late = !overtime && S.time > 8 * 60 + 2;
   await greet(S, late);
+  // quy định nơi làm việc: thay đồng phục, rửa tay (xưởng thực phẩm)
+  const warn = [];
+  if (!S.today.uniform) warn.push(S.job === 'build' ? 'chưa lấy mũ bảo hộ, đai an toàn ở giá đồ' : 'chưa thay đồng phục ở tủ đồ');
+  if (S.job === 'factory' && !S.today.washed) warn.push('chưa rửa tay, sát khuẩn trước khi vào dây chuyền');
+  if (warn.length) {
+    const out = applyFx(S, { rep: -2 * warn.length });
+    await modal({ who: 'Tổ trưởng Yamada', title: '⚠️ Nhắc nhở', jp: 'ちゃんと準備してください', text: `Bạn ${warn.join(' và ')}. Lần sau nhớ chuẩn bị trước khi vào ca (bấm vào tủ đồ / bồn rửa tay trong xưởng).`, html: chips(out) });
+    S.today.uniform = true; S.today.washed = true;
+  }
   if (S.job === 'build') await safety(S);
+  // đứng vào vị trí làm việc, bật hoạt ảnh làm việc
+  standAtStation(S);
   let score;
   if (S.settings && S.settings.shiftMode === 'mini') {
     const diff = Math.min(0.6, S.stats.shifts / 40);
@@ -89,6 +111,7 @@ export async function startShift(S, overtime) {
     score = ok / n;
     S.skill[S.job] = (S.skill[S.job] || 0) + ok;
   }
+  player.pose = null;
   const base = overtime ? shiftRate(S) * 0.5 * 1.25 : shiftRate(S);
   const pay = Math.round((base * (0.95 + 0.1 * score) * (1 + certBonus(S)) * payMul(S)) / 10) * 10;
   if (!overtime) S.workDays = (S.workDays || 0) + 1;
@@ -128,6 +151,9 @@ export function workActions(S) {
   const job = JOBS[S.job];
   const a = [];
   const sat = (S.day - 1) % 7 === 5;
+  a.push({ label: S.job === 'build' ? '⛑️ Thay đồ: lấy mũ bảo hộ, đai an toàn' : '👕 Thay đồng phục', sub: S.today.uniform ? 'Đã chuẩn bị' : 'Nên làm trước khi vào ca', minutes: 5, cond: (s) => (s.today.uniform ? 'Đã thay rồi' : null), after: (s) => { s.today.uniform = true; }, res: S.job === 'build' ? 'Mũ cài quai, đai móc chắc. 「ヨシ！」' : 'Mũ trùm tóc, áo trắng, ủng. Lăn bụi quần áo xong.' });
+  if (S.job === 'factory') a.push({ label: '🧼 Rửa tay, sát khuẩn', minutes: 3, cond: (s) => (s.today.washed ? 'Đã rửa rồi' : null), after: (s) => { s.today.washed = true; }, res: 'Rửa tay 30 giây, sát khuẩn cồn. Vệ sinh là trên hết (衛生第一).' });
+  a.push({ label: '📋 Xem bảng thông báo', minutes: 3, res: (s) => `Chỉ tiêu tháng: không tai nạn, tỉ lệ lỗi dưới 1%.<br>Ca làm: 08:00 – 17:00, nghỉ trưa 12:00.<br>Ngày công tháng này: <b>${s.workDays || 0}</b>.<br>${S.job === 'build' ? 'KY: hôm nay gió mạnh — chú ý vật rơi từ trên cao.' : 'Nhắc nhở: báo cáo ngay mọi sự cố nhỏ (報連相).'}` });
   if (visaInfo(S).change && !S.flags.betterJob && anyAtLeast(S, ['kimura', 'mai', 'daiki', 'long'], 3)) {
     a.push({ label: '🔁 Chuyển sang chỗ làm mới (lương +10%)', sub: 'Bạn thân giới thiệu · visa của bạn được phép đổi chỗ làm cùng ngành', run: async (s) => { s.flags.betterJob = true; addLog(s, 'Chuyển sang chỗ làm mới nhờ người quen giới thiệu'); await modal({ title: '🔁 Chỗ làm mới', text: 'Nhờ người quen giới thiệu, bạn chuyển sang một công ty cùng ngành trả lương cao hơn 10%, chế độ tốt hơn. Mối quan hệ chính là tài sản!' }); } });
   }

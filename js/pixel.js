@@ -68,17 +68,28 @@ export function wrap(c, s, maxW, size = 7) {
   return lines;
 }
 
-// Nhân vật 12x18, (fx, fy) = điểm giữa bàn chân
-export function drawPerson(c, fx, fy, look, dir, t, moving) {
-  const x = Math.round(fx) - 6, feet = Math.round(fy);
-  const ph = moving ? Math.floor(t * 8) % 4 : 0;
-  const y = feet - 18 - (ph % 2);
+// Nhân vật 12x18, (fx, fy) = điểm giữa bàn chân.
+// pose: undefined (đứng/đi) | 'sit' | 'sleep' | 'work' (tay thoăn thoắt) | 'bow' (cúi chào) | 'wave'
+export function drawPerson(c, fx, fy, look, dir, t, moving, pose) {
   const { skin, hair, shirt, pants } = look;
+  if (pose === 'sleep') {
+    const x = Math.round(fx) - 8, y = Math.round(fy) - 9;
+    rect(c, skin, x, y + 1, 6, 6); rect(c, hair, x, y, 6, 3); rect(c, '#222', x + 3, y + 4, 2, 1);
+    rect(c, shade(shirt, 0.15), x + 5, y + 2, 12, 6); rect(c, shade(shirt, -0.1), x + 5, y + 6, 12, 2);
+    return;
+  }
+  const x = Math.round(fx) - 6, feet = Math.round(fy);
+  const breathe = !moving && !pose ? (Math.floor(t * 1.4 + fx * 0.07) % 2) : 0;
+  const ph = moving ? Math.floor(t * 8) % 4 : 0;
+  const sit = pose === 'sit';
+  const y = feet - 18 - (ph % 2) + (sit ? 3 : 0) + (pose === 'bow' ? 2 : 0) + breathe * 0;
   const long = look.gender === 'f';
   const side = dir === 'left' || dir === 'right';
   rect(c, 'rgba(0,0,0,.28)', x + 2, feet - 1, 8, 2);
   // chân
-  if (!side) {
+  if (sit) {
+    rect(c, pants, x + 3, y + 13, 6, 2); rect(c, '#2a2a2a', x + 3, y + 15, 2, 1); rect(c, '#2a2a2a', x + 7, y + 15, 2, 1);
+  } else if (!side) {
     const la = ph === 1 ? 1 : 0, lb = ph === 3 ? 1 : 0;
     rect(c, pants, x + 3, y + 13, 2, 4 - la); rect(c, pants, x + 7, y + 13, 2, 4 - lb);
     rect(c, '#2a2a2a', x + 3, y + 17 - la, 2, 1); rect(c, '#2a2a2a', x + 7, y + 17 - lb, 2, 1);
@@ -89,10 +100,18 @@ export function drawPerson(c, fx, fy, look, dir, t, moving) {
     rect(c, '#2a2a2a', x + 5 - s + f, y + 17, 3, 1); rect(c, '#2a2a2a', x + 5 + s + f, y + 17, 3, 1);
   }
   // thân
-  rect(c, shirt, x + 2, y + 8, 8, 6);
+  rect(c, shirt, x + 2, y + 8 + breathe * 0, 8, 6);
   rect(c, shade(shirt, -0.22), x + 2, y + 13, 8, 1);
-  const sw = moving ? (ph === 1 ? 1 : ph === 3 ? -1 : 0) : 0;
-  if (!side) {
+  if (breathe) rect(c, shade(shirt, 0.08), x + 3, y + 8, 6, 1);
+  const wp = Math.floor(t * 9) % 2;
+  const sw = pose === 'work' ? (wp ? 2 : -1) : moving ? (ph === 1 ? 1 : ph === 3 ? -1 : 0) : 0;
+  if (pose === 'wave') {
+    rect(c, shade(shirt, -0.1), x + 1, y + 9, 1, 3); rect(c, skin, x + 1, y + 12, 1, 1);
+    rect(c, shade(shirt, -0.1), x + 10, y + 5 - (Math.floor(t * 6) % 2), 1, 4); rect(c, skin, x + 10, y + 3 - (Math.floor(t * 6) % 2), 2, 2);
+  } else if (pose === 'work' && !side) {
+    rect(c, shade(shirt, -0.1), x + 1, y + 9 - sw, 1, 3); rect(c, skin, x + 1, y + 8 - sw, 2, 1);
+    rect(c, shade(shirt, -0.1), x + 10, y + 9 + sw, 1, 3); rect(c, skin, x + 9, y + 8 + sw, 2, 1);
+  } else if (!side) {
     rect(c, shade(shirt, -0.1), x + 1, y + 9 + sw, 1, 3); rect(c, skin, x + 1, y + 12 + sw, 1, 1);
     rect(c, shade(shirt, -0.1), x + 10, y + 9 - sw, 1, 3); rect(c, skin, x + 10, y + 12 - sw, 1, 1);
   } else {

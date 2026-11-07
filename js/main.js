@@ -6,6 +6,9 @@ import { nextSessionText } from './exam.js';
 import { journeyHtml } from './career.js';
 import { openPhone } from './phone.js';
 import './systems.js';
+import { ensureWorld } from './ai/world.js';
+import { apptCheck } from './ai/proactive.js';
+import { exitBuilding, curMap, fadeActive } from './town.js';
 import { PEOPLE, stageName } from './social.js';
 import { loveHtml } from './romance.js';
 import { familyHtml } from './family.js';
@@ -163,6 +166,8 @@ const HELP_HTML = `<ul class="help">
 </ul>`;
 
 function startPlaying() {
+  ensureWorld(G.S);
+  if (!G.S.map) placePlayer('dorm');
   showScreen(null);
   engine.scene = townScene;
   showHud(true);
@@ -254,6 +259,7 @@ function frame(now) {
     ctx.fillStyle = '#141a2e';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   } else {
+    if (sc.tick) sc.tick(dt);
     if (sc.isMini || !G.busy) sc.update(dt, view);
     const s = view.z * view.dpr;
     ctx.setTransform(s, 0, 0, s, 0, 0);
@@ -262,7 +268,12 @@ function frame(now) {
   }
   if (sc === townScene && G.S && !G.busy && !modalOpen()) {
     const S = G.S;
-    if (S.time >= MIDNIGHT) runFlow(() => passOut(S));
+    const ap = S.today.appt;
+    const here = curMap(S).outdoor ? (Math.hypot(S.pos.x - 12 * 16, S.pos.y - 30 * 16) < 60 && S.map === 'town' ? 'park' : null) : curMap(S).key;
+    if (G.pendingExit) { G.pendingExit = false; runFlow(() => exitBuilding()); }
+    else if (fadeActive()) { /* đang chuyển cảnh */ }
+    else if (S.time >= MIDNIGHT) runFlow(() => passOut(S));
+    else if (ap && !ap.done && (S.time > ap.at + 120 || (here === ap.place && S.time >= ap.at - 30))) runFlow(() => apptCheck(S, here));
     else if (S.health <= 0 || S.mood <= 0 || S.rep <= 0) runFlow(() => critical(S));
     else if (input.act() && townScene.target) { const t = townScene.target; runFlow(() => interact(t)); }
   }
@@ -274,7 +285,7 @@ function frame(now) {
 }
 
 // ---------- khởi động ----------
-if (/[?&]debug\b/.test(location.search)) Object.assign(window, { __G: G, __engine: engine, __view: view });
+if (/[?&]debug\b/.test(location.search)) Object.assign(window, { __G: G, __engine: engine, __view: view, __curMap: curMap });
 if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
 initInput(() => document.body.classList.add('touch'));
 resize(canvas);
