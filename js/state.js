@@ -40,6 +40,7 @@ export function newState({ name, gender, look, job }) {
     money: 30000, debt: START_DEBT, wage: 0,
     health: 85, energy: 100, mood: 70, full: 60, rep: 50,
     lang: newLang(), certs: [], exam: null, skill: {},
+    career: { visa: 'tts1', start: 1, end: 1 + YEAR_DAYS, passed: {}, tried: {}, ssw1Start: null, history: [{ visa: 'tts1', day: 1 }], notified: null },
     settings: { shiftMode: 'quiz' },
     sick: 0, worked: false, lastScore: 0.6,
     weather: 'clear',
@@ -62,6 +63,9 @@ export function migrate(S) {
     delete S.cert;
     S.exam = null; S.skill = {}; S.settings = { shiftMode: 'quiz' };
     S.v = 2;
+  }
+  if (!S.career) {
+    S.career = { visa: 'tts1', start: 1, end: Math.max(1 + YEAR_DAYS, S.day + 20), passed: {}, tried: {}, ssw1Start: null, history: [{ visa: 'tts1', day: 1 }], notified: null };
   }
   return S;
 }

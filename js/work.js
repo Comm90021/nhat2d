@@ -10,6 +10,7 @@ import { fixedEvent, markFixed, randomEvent, runEvent } from './events.js';
 import { sfx } from './audio.js';
 import { workQuiz } from './quiz.js';
 import { certBonus } from './exam.js';
+import { payMul, availableTest, takeTest, TESTS, testBlockReason } from './career.js';
 
 const SCENES = { factory: factoryScene, farm: farmScene, build: buildScene };
 
@@ -87,7 +88,7 @@ export async function startShift(S, overtime) {
     S.skill[S.job] = (S.skill[S.job] || 0) + ok;
   }
   const base = overtime ? job.pay * 0.625 : job.pay;
-  const pay = Math.round((base * (0.75 + 0.45 * score) * (1 + certBonus(S))) / 10) * 10;
+  const pay = Math.round((base * (0.75 + 0.45 * score) * (1 + certBonus(S)) * payMul(S)) / 10) * 10;
   const k = overtime ? 0.55 : 1;
   S.time = Math.max(S.time + 60, overtime ? 13 * 60 : 17 * 60);
   const out = applyFx(S, {
@@ -127,6 +128,19 @@ export function workActions(S) {
   if (S.today.noWork) a.push({ label: '🚫 Hôm nay bạn được nghỉ', cond: () => 'Bão hoặc ngày đi thi' });
   else if (S.worked) a.push({ label: '✅ Đã xong ca hôm nay', cond: () => 'Mai quay lại nhé' });
   else if (isWorkday(S)) {
+    const tid = availableTest(S);
+    if (tid) {
+      a.push({
+        label: `📋 Thi tay nghề: ${TESTS[tid].name}`, sub: `${TESTS[tid].vi} · thay cho ca làm hôm nay, vẫn được tính lương`,
+        cond: (s) => testBlockReason(s, tid) || (s.time > 10 * 60 ? 'Phải đến trước 10:00' : s.today.sickLeave ? 'Hôm nay bạn đã xin nghỉ ốm' : null),
+        run: async (s) => {
+          await takeTest(s, tid);
+          const pay = Math.round((job.pay * 0.9 * payMul(s)) / 10) * 10;
+          s.wage += pay; s.stats.earned += pay;
+          applyFx(s, { energy: -20, full: -25 });
+        },
+      });
+    }
     a.push({
       label: S.time <= 8 * 60 ? `${job.icon} Vào ca (08:00 – 17:00)` : `🏃 Vào ca muộn`,
       sub: S.time <= 8 * 60 ? 'Đúng giờ' : 'Bạn đã muộn giờ!',

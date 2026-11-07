@@ -3,6 +3,7 @@ import { G, newState, load, save, clearSave, MIDNIGHT, YEAR_DAYS, year, bestCert
 import { levelStats, progress } from './learning.js';
 import { ending } from './days.js';
 import { nextSessionText } from './exam.js';
+import { journeyHtml } from './career.js';
 import { JOBS, LOOK } from './data.js';
 import { input, initInput } from './input.js';
 import { modal, showHud, updateHud, toast, modalOpen, esc } from './ui.js';
@@ -174,6 +175,7 @@ function bookHtml(S) {
   ].filter(Boolean);
   const log = S.log.slice(0, 10).map((l) => `<li><span class="dim">Ngày ${l.d}:</span> ${esc(l.t)}</li>`).join('');
   return `<div class="payslip">${row('💴 Tiền mặt', yen(S.money))}${row('🧾 Lương chờ lĩnh', yen(S.wage))}${row('🏦 Nợ ở quê', vnd(Math.max(0, S.debt)))}${row('💸 Đã gửi về', vnd(S.stats.sentVnd))}${row('📅 Thời gian ở Nhật', `Năm ${year(S)} · ${S.day} ngày`)}${st}${row('👵 Câu bà Sato đã dạy', S.learned.length)}${row('🏭 Ca đã làm / đi muộn / nghỉ', `${S.stats.shifts} / ${S.stats.lates} / ${S.stats.absences}`)}</div>
+    <h3>🛂 Visa & nghề nghiệp</h3>${journeyHtml(S)}
     <h3>🗣️ Tiếng Nhật — trình độ ${jpLevel(S)}${bestCert(S) ? ` · chứng chỉ ${bestCert(S)}` : ''}</h3>
     <div class="payslip">${levelStats(S.lang).map((l) => `<div class="prow"><span>${l.reached ? '✅' : '⬜'} ${l.lv}</span><span>${Math.min(100, Math.round((l.xp / l.need) * 100))}% · chính xác ${Math.round(l.acc * 100)}%</span></div>`).join('')}
     <div class="prow"><span>🔥 Chuỗi đúng dài nhất</span><span>${S.lang.best}</span></div></div>

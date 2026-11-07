@@ -2,6 +2,7 @@
 import { G, MIDNIGHT, RATE, applyFx, advance, clockStr, yen, vnd, dow, seasonIdx, addLog, save, isNewYear, year } from './state.js';
 import { studyJapanese } from './quiz.js';
 import { canRegister, register, nextSessionText } from './exam.js';
+import { applyPR } from './career.js';
 import { JOBS, PHRASES, LONG_TIPS, TEACHER_TALK } from './data.js';
 import { modal, chips, toast } from './ui.js';
 import { sleep } from './days.js';
@@ -36,6 +37,7 @@ const PLACES = {
         res: (s) => (s.time >= H(22) ? 'Nói chuyện vui quá, quên mất đã khuya. Tường ký túc xá mỏng lắm…' : 'Mẹ hỏi ăn uống thế nào, bố dặn giữ sức khỏe. Bạn thấy nhẹ lòng hơn.'),
       },
       { label: '📖 Tự học tiếng Nhật', sub: '3 câu hỏi · 60 phút', minutes: 60, energy: 10, run: selfStudy },
+      ...(['ssw2', 'spouse'].includes(S.career.visa) ? [{ label: '📄 Nộp hồ sơ xin thường trú (永住)', sub: 'Lệ phí ¥10,000 · xét điều kiện', run: applyPR }] : []),
       { label: '📝 Đăng ký thi JLPT qua mạng', sub: canRegister(S) ? 'Đang mở đăng ký · lệ phí ¥7,500' : nextSessionText(S), cond: (s) => (canRegister(s) ? null : 'Chưa tới đợt đăng ký'), run: register },
     ],
   },

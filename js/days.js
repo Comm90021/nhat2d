@@ -4,6 +4,7 @@ import {
   applyFx, tickNeeds, energyCap, yen, vnd, jpLevel, bestCert, addLog, save, clearSave, clamp,
 } from './state.js';
 import { examMorning } from './exam.js';
+import { careerMorning, visaInfo } from './career.js';
 import { levelIndex } from './learning.js';
 import { modal, chips, esc } from './ui.js';
 import { fixedEvent, markFixed, randomEvent, runEvent } from './events.js';
@@ -91,6 +92,8 @@ async function morning(S, msgs) {
     html,
     ok: 'Bắt đầu ngày mới ☀️',
   });
+  const cr = await careerMorning(S);
+  if (cr) return ending(S, cr === 'ending-home' ? 'home' : 'visa');
   if (await examMorning(S)) { save(); return; }
   const fixed = fixedEvent(S, 'morning');
   if (fixed) { markFixed(S, fixed); await runEvent(fixed); }
@@ -141,7 +144,10 @@ export async function ending(S, kind) {
   let title, text;
   if (kind === 'fired') {
     title = '✈️ Bị cho về nước';
-    text = 'Uy tín của bạn ở công ty đã cạn. Sau nhiều lần cảnh cáo, công ty và nghiệp đoàn quyết định chấm dứt hợp đồng thực tập. Chuyến bay về nước nặng trĩu…';
+    text = 'Uy tín của bạn ở công ty đã cạn. Sau nhiều lần cảnh cáo, công ty và nghiệp đoàn quyết định chấm dứt hợp đồng. Chuyến bay về nước nặng trĩu…';
+  } else if (kind === 'visa') {
+    title = '🛂 Hết hạn lưu trú';
+    text = `${visaInfo(S).name} đã hết hạn mà bạn không đủ điều kiện chuyển tiếp (ví dụ: chưa đỗ thi tay nghề). Bạn phải thu xếp về nước sau ${yrs} năm ở Nhật.`;
   } else if (score >= 85) {
     title = '🌟 Trở về rạng rỡ';
     text = `Sau ${yrs} năm ở Nhật: nợ đã trả, tiếng Nhật vững, được công ty quý trọng. Bố mẹ tự hào về bạn!`;

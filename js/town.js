@@ -1,6 +1,7 @@
 // Thị trấn Hikari-chō: bản đồ ô vuông, vẽ, di chuyển, người đi đường, ngày/đêm, thời tiết.
 import { G, seasonIdx, tickNeeds, TIME_RATE, isWorkday, dow, MIDNIGHT, isNewYear } from './state.js';
 import { canRegister } from './exam.js';
+import { availableTest, testBlockReason, TESTS } from './career.js';
 import { input } from './input.js';
 import { TS, FONT, hash2, rect, disc, shade, pick, text, pill, drawPerson, drawCat, drawCar } from './pixel.js';
 import { JOBS, LOOK } from './data.js';
@@ -332,6 +333,11 @@ export function objective(S) {
   if (t >= 22 * 60) return { text: '🌙 Khuya rồi — về Ký túc xá ngủ trước 0:00', target: 'dorm' };
   if (isWorkday(S) && !S.worked && !S.today.noWork && !S.today.sickLeave && t <= 10 * 60)
     return { text: t <= 8 * 60 ? `🏭 Đến ${JOBS[S.job].place} trước 08:00` : '🏃 Muộn rồi! Chạy nhanh đến chỗ làm!', target: 'work' };
+  const tid = availableTest(S);
+  if (tid && isWorkday(S) && !S.worked && t <= 10 * 60 && !testBlockReason(S, tid))
+    return { text: `📋 Có thể thi tay nghề ${TESTS[tid].name} ở chỗ làm${tid === 'kiso' ? ' — bắt buộc để gia hạn visa!' : ''}`, target: 'work' };
+  if (S.career.visa === 'tts1' && !S.career.passed.kiso && S.career.end - S.day <= 9)
+    return { text: '❗ Visa sắp hết — phải đỗ thi tay nghề 基礎級 (ngày thường, trước 10:00, ở chỗ làm)', target: 'work' };
   if (S.sick > 0) return { text: '🤒 Bạn đang ốm — đến phòng khám hoặc mua thuốc ở konbini', target: t >= 9 * 60 && t < 18 * 60 && dow(S) !== 6 ? 'clinic' : 'konbini' };
   if (S.full < 25) return { text: '🍙 Đói bụng — mua đồ ăn ở konbini / siêu thị hoặc về nấu', target: 'konbini' };
   if (S.energy < 20) return { text: '😪 Kiệt sức — về ký túc xá nghỉ ngơi', target: 'dorm' };

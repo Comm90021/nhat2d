@@ -220,6 +220,22 @@ export const EVENTS = [
     ],
   },
 
+  {
+    id: 'ikusei', when: 'morning', w: 3, once: true, cond: (S) => S.day > 15,
+    who: 'Tin tức', title: '📰 Chế độ thực tập sinh sắp thay đổi', jp: '育成就労制度',
+    text: 'Báo đưa tin: Nhật Bản đã thông qua luật thay chế độ thực tập sinh kỹ năng bằng chế độ mới 「育成就労」 (dự kiến áp dụng từ năm 2027). Mục tiêu là đào tạo người lao động lên trình độ Kỹ năng đặc định số 1, và cho phép chuyển chỗ làm trong cùng ngành khi đủ điều kiện.',
+    choices: [
+      { label: 'Hỏi anh Long xem ảnh hưởng gì tới mình', minutes: 20, fx: { jp: 0.5, mood: 1 }, res: 'Anh Long: "Người đang là TTS vẫn theo hợp đồng cũ. Quan trọng nhất vẫn là tay nghề và tiếng Nhật — có hai cái đó thì chế độ nào cũng sống được."' },
+      { label: 'Đọc lướt rồi đi làm', fx: { jp: 0.3 } },
+    ],
+  },
+  {
+    id: 'kisoRemind', when: 'morning', w: 6, once: true, cond: (S) => S.career && S.career.visa === 'tts1' && S.day - S.career.start >= 28,
+    who: 'Tổ trưởng Yamada', title: '📋 Đăng ký thi tay nghề', jp: '技能検定基礎級',
+    text: 'Chị Yamada báo: thực tập sinh năm nhất phải thi 技能検定 基礎級 (lý thuyết + thực hành). Không đỗ thì không được gia hạn lên TTS số 2. Công ty đã đăng ký cho bạn — ngày thường đến chỗ làm trước 10:00 là thi được.',
+    choices: [{ label: '「はい、頑張ります！」', fx: { rep: 1 } }],
+  },
+
   // ===================== sau ca làm =====================
   {
     id: 'zangyo', when: 'after', w: 3, cond: (S) => isWorkday(S),
