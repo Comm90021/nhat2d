@@ -14,10 +14,12 @@ import { invalidateMap } from './town.js';
 import { aiMorningMsgs, aiProactive } from './ai/proactive.js';
 import { ensureWorld } from './ai/world.js';
 import { bankMonthEnd } from './bank.js';
+import { jobsMonthEnd, employed, ensureEmp } from './jobs.js';
+import { modal } from './ui.js';
 
 // ---------- cuối ngày (trước khi sang ngày mới) ----------
 bus.on('day:end', 10, (S, ctx) => {
-  if (isWorkday(S) && !S.worked && !S.today.noWork && !S.today.sickLeave) {
+  if (isWorkday(S) && !S.worked && !S.today.noWork && !S.today.sickLeave && employed(S)) {
     S.rep = clamp(S.rep - 12);
     S.stats.absences++;
     ctx.msgs.push('❌ Hôm qua bạn nghỉ làm không phép: uy tín −12.');
@@ -50,6 +52,7 @@ bus.on('day:start', 10, (S, ctx) => {
 
 // ---------- cuối tháng (Chủ Nhật) ----------
 bus.on('month:end', 10, (S, ctx) => { ctx.msgs.push(payroll(S)); }, 'lương tháng');
+bus.on('month:end', 12, (S, ctx) => { jobsMonthEnd(S, ctx); }, 'việc làm: thử việc, thăng chức, thất nghiệp');
 bus.on('month:end', 15, (S, ctx) => { bankMonthEnd(S, ctx); }, 'ngân hàng, thị trường, trả góp');
 bus.on('month:end', 20, async (S, ctx) => {
   const fw = await familyWeekly(S);
@@ -58,6 +61,12 @@ bus.on('month:end', 20, async (S, ctx) => {
 }, 'gia đình hằng tháng');
 
 // ---------- buổi sáng: các việc cần người chơi quyết định ----------
+bus.on('morning', 5, async (S, ctx) => {
+  if (!ctx.unemployedOut) return null;
+  await modal({ title: '🛂 Mất tư cách lưu trú', text: 'Bạn thất nghiệp quá 3 tháng mà không tìm được việc mới. Cục Xuất nhập cảnh hủy tư cách lưu trú lao động của bạn.' });
+  ctx.endKind = 'visa';
+  return 'end';
+}, 'thất nghiệp quá hạn');
 bus.on('morning', 10, async (S, ctx) => {
   const cr = await careerMorning(S);
   if (cr) { ctx.endKind = cr === 'ending-home' ? 'home' : 'visa'; return 'end'; }

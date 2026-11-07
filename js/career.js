@@ -6,6 +6,7 @@ import { ask } from './quiz.js';
 import { pickWork } from './quiz.js';
 import { sfx } from './audio.js';
 import { pay } from './finance.js';
+import { workName } from './jobs.js';
 
 const Y = YEAR_DAYS;
 export const VISAS = {
@@ -15,6 +16,7 @@ export const VISAS = {
   ssw1: { short: 'KNĐĐ số 1', name: 'Kỹ năng đặc định số 1 (特定技能1号)', years: 1, pay: 1.2, family: false, change: true },
   ssw2: { short: 'KNĐĐ số 2', name: 'Kỹ năng đặc định số 2 (特定技能2号)', years: 3, pay: 1.35, family: true, change: true },
   spouse: { short: 'Vợ/chồng', name: 'Vợ/chồng người Nhật (日本人の配偶者等)', years: 3, pay: 1.2, family: true, change: true },
+  eng: { short: 'Kỹ sư', name: 'Kỹ sư – Tri thức nhân văn – Nghiệp vụ quốc tế (技術・人文知識・国際業務)', years: 3, pay: 1, family: true, change: true },
   pr: { short: 'Thường trú', name: 'Thường trú nhân (永住者)', years: 0, pay: 1.35, family: true, change: true },
 };
 export const TESTS = {
@@ -37,7 +39,8 @@ export function skillRank(S) {
   const s = (S.skill && S.skill[S.job]) || 0;
   return s >= 160 ? 'Tổ trưởng (班長)' : s >= 90 ? 'Thành thạo (ベテラン)' : s >= 35 ? 'Làm độc lập (一人前)' : 'Học việc (見習い)';
 }
-export const payMul = (S) => visaInfo(S).pay * (1 + Math.min(0.15, ((S.skill && S.skill[S.job]) || 0) / 1200)) * (S.flags.betterJob ? 1.1 : 1);
+// Hệ số lương theo visa chỉ áp dụng ở công ty ban đầu; công ty mới đã có mức lương riêng theo vị trí
+export const payMul = (S) => (S.emp && S.emp.co && S.emp.co !== 'work' ? 1 : visaInfo(S).pay) * (1 + Math.min(0.15, ((S.skill && S.skill[S.job]) || 0) / 1200)) * (S.flags.betterJob ? 1.1 : 1);
 
 export function setVisa(S, visa, years) {
   const C = S.career;
@@ -73,7 +76,7 @@ export async function takeTest(S, id) {
   const t = TESTS[id];
   const C = S.career;
   await modal({
-    who: JOBS[S.job].place, title: `📋 ${t.name}`, jp: t.vi,
+    who: workName(S), title: `📋 ${t.name}`, jp: t.vi,
     text: `${t.note}<br>Bài thi gồm <b>${t.n} câu</b> lý thuyết và thực hành. Đỗ khi đúng từ ${Math.round(t.pass * 100)}% trở lên. Không được xem đáp án trong lúc thi.`,
     ok: 'Vào thi ✏️',
   });
@@ -108,7 +111,7 @@ export function prCheck(S) {
   const C = S.career;
   const workDays = C.history.reduce((acc, h, i) => {
     const next = C.history[i + 1] ? C.history[i + 1].day : S.day;
-    return acc + (['ssw2', 'spouse'].includes(h.visa) ? next - h.day : 0);
+    return acc + (['ssw2', 'spouse', 'eng'].includes(h.visa) ? next - h.day : 0);
   }, 0);
   const need = [];
   if (C.visa === 'pr') return { ok: false, need: ['Bạn đã là thường trú nhân'] };

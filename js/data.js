@@ -21,6 +21,16 @@ export const JOBS = {
   },
 };
 
+// Nghề mới khi chuyển việc (v3.3) — chỉ có ca làm trắc nghiệm, không có mini-game
+Object.assign(JOBS, {
+  it: { id: 'it', icon: '💻', name: 'Công nghệ thông tin', jp: 'IT', place: 'Văn phòng Kaizen IT', sign: 'IT', monthly: 280000, energy: 26, game: null, desc: 'Lập trình, kiểm thử, họp dự án.', tip: 'Gặp lỗi thì báo cáo sớm (報連相), đừng ôm một mình đến sát deadline.' },
+  electric: { id: 'electric', icon: '⚡', name: 'Điện – tự động hóa', jp: '電気', place: 'Tōhoku Denki', sign: '電気', monthly: 210000, energy: 34, game: null, desc: 'Đấu dây, lắp tủ điện, bảo trì.', tip: 'Luôn ngắt nguồn, khóa và treo biển (ロックアウト) trước khi làm việc với điện.' },
+  parts: { id: 'parts', icon: '🔩', name: 'Sản xuất linh kiện', jp: '部品製造', place: 'Minato Parts', sign: '部品', monthly: 195000, energy: 34, game: null, desc: 'Vận hành máy dập, robot hàn, kiểm tra hàng.', tip: 'Thấy bất thường thì bấm dừng khẩn cấp và báo ngay.' },
+  logistics: { id: 'logistics', icon: '📦', name: 'Kho vận', jp: '物流', place: 'Kho vận Hayabusa', sign: '物流', monthly: 200000, energy: 38, game: null, desc: 'Lấy hàng, đóng gói, xếp kệ, lái xe nâng.', tip: 'Đi đúng lối đi bộ, mang vác đúng tư thế để không đau lưng.' },
+  care: { id: 'care', icon: '🧓', name: 'Điều dưỡng', jp: '介護', place: 'Viện dưỡng lão Hinata', sign: '介護', monthly: 215000, energy: 36, game: null, desc: 'Chăm sóc người cao tuổi: ăn uống, di chuyển, trò chuyện.', tip: 'Nói chậm, rõ, dùng kính ngữ; để ý thay đổi nhỏ về sức khỏe của các cụ.' },
+  restaurant: { id: 'restaurant', icon: '🍜', name: 'Nhà hàng', jp: '外食', place: 'Quán ramen Taishō', sign: '外食', monthly: 190000, energy: 34, game: null, desc: 'Bếp và phục vụ ở quán ramen.', tip: 'Hỏi kỹ dị ứng thức ăn của khách, rửa tay mỗi lần đổi việc.' },
+});
+
 export const LOOK = {
   hair: ['#1e1a1a', '#3b2a20', '#6b4226', '#9c5a2e', '#2f3d5c', '#b8a17a'],
   shirt: ['#e35d5b', '#3f88c5', '#44a36b', '#f2a541', '#8e6bbf', '#f1ece0', '#2e3440'],

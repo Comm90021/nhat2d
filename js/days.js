@@ -13,6 +13,7 @@ import { sfx } from './audio.js';
 import { bus } from './bus.js';
 import { isMonthEnd, holidayName } from './calendar.js';
 import { pay, assetEffect } from './finance.js';
+import { employed, endEmployment } from './jobs.js';
 
 function rollWeather(S) {
   const si = seasonIdx(S), r = Math.random();
@@ -37,7 +38,12 @@ export async function sleep(S, opts = {}) {
 async function endDay(S) {
   const ctx = { msgs: [], prevSeason: seasonIdx(S) };
   await bus.emit('day:end', S, ctx);
-  if (S.rep <= 0) return ending(S, 'fired');
+  if (S.rep <= 0) {
+    if (S.career.visa.startsWith('tts') || !employed(S)) return ending(S, 'fired');
+    endEmployment(S, 'Bị công ty cho nghỉ việc');
+    S.rep = 30;
+    ctx.msgs.push('📩 Công ty chấm dứt hợp đồng vì vi phạm nhiều lần. Bạn có 3 tháng để tìm việc mới, nếu không sẽ mất visa.');
+  }
   S.day++;
   S.time = DAY_START;
   S.worked = false;

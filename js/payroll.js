@@ -3,8 +3,9 @@ import { yen, seasonIdx, year, addLog } from './state.js';
 import { deposit, bankPay } from './finance.js';
 import { JOBS } from './data.js';
 import { sfx } from './audio.js';
+import { monthlyPay } from './jobs.js';
 
-const RENT = { tts1: 20000, tts2: 20000, tts3: 20000, ssw1: 35000, ssw2: 38000, spouse: 45000, pr: 45000 };
+const RENT = { tts1: 20000, tts2: 20000, tts3: 20000, ssw1: 35000, ssw2: 38000, spouse: 45000, pr: 45000, eng: 50000 };
 
 export function payslip(S) {
   const gross = Math.round(S.wage || 0);
@@ -44,4 +45,4 @@ export function payroll(S) {
 }
 
 // Tiền công một ca (1 ngày chơi ≈ 1/5 tháng)
-export const shiftRate = (S) => JOBS[S.job].monthly / 5;
+export const shiftRate = (S) => monthlyPay(S) / 5;

@@ -2,6 +2,7 @@
 import { G, applyFx, advance, addLog, isWorkday, dow, seasonIdx, yen, doy, year } from './state.js';
 import { setCat, clearCat } from './finance.js';
 import { JOBS } from './data.js';
+import { monthlyPay } from './jobs.js';
 import { modal, chips } from './ui.js';
 
 // Lựa chọn: { label, sub, need (yên), cond(S)->lý do|null, fx (obj|fn), res (str|fn), minutes, setTime,
@@ -244,7 +245,7 @@ export const EVENTS = [
     who: 'Chị Yamada (tổ trưởng)', title: '⏱️ Làm thêm giờ?', jp: '今日、残業できますか？',
     text: 'Có đơn hàng gấp, cần thêm người làm 2 tiếng nữa. Lương làm thêm cao hơn lương thường.',
     choices: [
-      { label: '「はい、できます！」', sub: 'Phụ cấp tăng ca 25% · mệt hơn', minutes: 120, fx: (S) => ({ wage: Math.round(JOBS[S.job].monthly * 0.04), energy: -18, full: -8, rep: 4 }) },
+      { label: '「はい、できます！」', sub: 'Phụ cấp tăng ca 25% · mệt hơn', minutes: 120, fx: (S) => ({ wage: Math.round(monthlyPay(S) * 0.04), energy: -18, full: -8, rep: 4 }) },
       { label: '「すみません、今日はちょっと…」', fx: { rep: -1 }, res: 'Chị Yamada gật đầu: 「分かりました」.' },
     ],
   },

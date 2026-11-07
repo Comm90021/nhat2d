@@ -4,6 +4,7 @@ import { sfx } from './audio.js';
 import { KIND } from './content/jlpt.js';
 import { pickQuestion, answer, progress, shuffleQ } from './learning.js';
 import { WORK_Q } from './content/work.js';
+import { WORK_Q2 } from './content/work2.js';
 import { assetEffect } from './finance.js';
 
 // Hỏi một câu. q: {q, opts[], a, ex, k?}. Trả về true nếu đúng.
@@ -56,7 +57,7 @@ export async function studyJapanese(S, n, o = {}) {
 // Câu hỏi tình huống ở chỗ làm
 export function pickWork(S, job) {
   S.workRecent = S.workRecent || [];
-  const pool = [...WORK_Q[job], ...WORK_Q.general];
+  const pool = [...(WORK_Q[job] || WORK_Q2[job] || []), ...WORK_Q.general];
   const fresh = pool.filter((q) => !S.workRecent.includes(q.id));
   const list = fresh.length >= 4 ? fresh : pool;
   const q = list[Math.floor(Math.random() * list.length)];

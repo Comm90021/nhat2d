@@ -7,6 +7,7 @@ import { journeyHtml } from './career.js';
 import { openPhone } from './phone.js';
 import './systems.js';
 import { ensureWorld } from './ai/world.js';
+import { ensureEmp } from './jobs.js';
 import { apptCheck } from './ai/proactive.js';
 import { exitBuilding, curMap, fadeActive } from './town.js';
 import { PEOPLE, stageName } from './social.js';
@@ -167,6 +168,7 @@ const HELP_HTML = `<ul class="help">
 
 function startPlaying() {
   ensureWorld(G.S);
+  ensureEmp(G.S);
   if (!G.S.map) placePlayer('dorm');
   showScreen(null);
   engine.scene = townScene;

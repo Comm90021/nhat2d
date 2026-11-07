@@ -9,6 +9,7 @@ import { endText, availableTest, TESTS, visaInfo } from './career.js';
 import { romanceActions } from './romance.js';
 import { CAT, monthReport } from './finance.js';
 import { openBank } from './bank.js';
+import { openJobs } from './jobs.js';
 import { stateOf, moodInfo } from './ai/sim.js';
 import { AI_PLACES } from './ai/world.js';
 import { ACT } from './ai/rules.js';
@@ -26,6 +27,7 @@ export async function openPhone(S) {
         { label: `📇 Danh bạ (${met.length} người)`, sub: 'Nhắn tin hỏi thăm, rủ đi ăn', value: 'contacts' },
         { label: '📖 App học tiếng Nhật', sub: `1 câu · 10 phút · còn ${APP_MAX - used}/${APP_MAX} lượt hôm nay`, value: 'app', disabled: used >= APP_MAX || S.time + 10 > MIDNIGHT, reason: 'Hôm nay học đủ rồi, mai tiếp nhé' },
         { label: '📅 Lịch & việc sắp tới', value: 'cal' },
+        { label: '💼 Việc làm', sub: 'Tìm việc, chuyển việc, thi chứng chỉ nghề', value: 'jobs' },
         { label: '🏦 Ngân hàng', sub: 'Tài khoản, chuyển tiền, tiết kiệm, đầu tư, vay, vé số, mua sắm', value: 'bank' },
         { label: '👥 Ai đang ở đâu?', sub: 'Mỗi người có lịch sống riêng', value: 'where' },
         { label: '✖ Cất điện thoại', value: null, cancel: true },
@@ -39,6 +41,7 @@ export async function openPhone(S) {
     }
     if (v === 'contacts') await contacts(S, met);
     if (v === 'bank') await openBank(S);
+    if (v === 'jobs') await openJobs(S);
     if (v === 'cal') await modal({ who: 'Lịch', title: '📅 Lịch & việc sắp tới', html: calendarHtml(S), ok: 'Đóng' });
     if (v === 'where') await modal({ who: 'Ngay lúc này', title: '👥 Ai đang ở đâu?', wide: true, html: whereHtml(S), ok: 'Đóng' });
   }

@@ -17,6 +17,7 @@ import { JOBS, LOOK } from '../data.js';
 import { canRegister } from '../exam.js';
 import { availableTest, testBlockReason, TESTS } from '../career.js';
 import { assetEffect } from '../finance.js';
+import { myPlace, workName } from '../jobs.js';
 
 // ---------- bản đồ ----------
 const MAPS = {};
@@ -37,9 +38,10 @@ function staticOf(M, si) {
 export function invalidateMap() { for (const k in statics) if (!k.startsWith('int:')) delete statics[k]; }
 
 export const curMap = (S) => getMap(S.map || 'town');
-export function interiorKeyFor(S, bId) { return bId === 'work' ? 'work_' + S.job : INTERIOR_OF[bId] || null; }
-const placeInterior = (S, place) => (place === 'work' ? 'work_' + S.job : AI_PLACES[place] && AI_PLACES[place].interior) || null;
-export function buildingName(b, S) { return b.id === 'work' && S ? JOBS[S.job].place : b.name; }
+const orig = (S) => S.origJob || S.job;
+export function interiorKeyFor(S, bId) { return bId === 'work' ? 'work_' + orig(S) : INTERIOR_OF[bId] || null; }
+export const placeInterior = (S, place) => (place === 'work' ? 'work_' + orig(S) : AI_PLACES[place] && AI_PLACES[place].interior) || null;
+export function buildingName(b, S) { return b.id === 'work' && S ? JOBS[orig(S)].place : b.name; }
 export function findBuilding(id) {
   for (const mid of ['town', 'minato']) { const M = getMap(mid); const b = M.buildings.find((x) => x.id === id); if (b) return { M, b }; }
   return null;
@@ -264,13 +266,15 @@ export function objective(S) {
     return { text: `💬 Hẹn ${PEOPLE[a.id].name} lúc ${Math.floor(a.at / 60)}:00 ở ${AI_PLACES[a.place].name}`, target: a.place };
   }
   if (t >= 22 * 60) return { text: '🌙 Khuya rồi — về Ký túc xá ngủ trước 0:00', target: 'dorm' };
+  const wp = myPlace(S);
+  if (!wp) return { text: '💼 Bạn đang thất nghiệp — mở 📱 → Việc làm để tìm việc', target: null };
   if (isWorkday(S) && !S.worked && !S.today.noWork && !S.today.sickLeave && t <= 10 * 60)
-    return { text: t <= 8 * 60 ? `🏭 Đến ${JOBS[S.job].place} trước 08:00` : '🏃 Muộn rồi! Chạy nhanh đến chỗ làm!', target: 'work' };
+    return { text: t <= 8 * 60 ? `🏭 Đến ${workName(S)} trước 08:00${AI_PLACES[wp] && AI_PLACES[wp].map === 'minato' ? ' (khu Minato, đi tàu)' : ''}` : '🏃 Muộn rồi! Chạy nhanh đến chỗ làm!', target: wp };
   const tid = availableTest(S);
   if (tid && isWorkday(S) && !S.worked && t <= 10 * 60 && !testBlockReason(S, tid))
-    return { text: `📋 Có thể thi tay nghề ${TESTS[tid].name} ở chỗ làm${tid === 'kiso' ? ' — bắt buộc để gia hạn visa!' : ''}`, target: 'work' };
+    return { text: `📋 Có thể thi tay nghề ${TESTS[tid].name} ở chỗ làm${tid === 'kiso' ? ' — bắt buộc để gia hạn visa!' : ''}`, target: wp };
   if (S.career.visa === 'tts1' && !S.career.passed.kiso && S.career.end - S.day <= 14)
-    return { text: '❗ Visa sắp hết — phải đỗ thi tay nghề 基礎級 (ngày thường, trước 10:00, ở chỗ làm)', target: 'work' };
+    return { text: '❗ Visa sắp hết — phải đỗ thi tay nghề 基礎級 (ngày thường, trước 10:00, ở chỗ làm)', target: wp };
   if (S.sick > 0) return { text: '🤒 Bạn đang ốm — đến phòng khám hoặc mua thuốc ở konbini', target: t >= 9 * 60 && t < 18 * 60 && dow(S) !== 6 ? 'clinic' : 'konbini' };
   if (S.full < 25) return { text: '🍙 Đói bụng — mua đồ ăn ở konbini / siêu thị hoặc về nấu', target: 'konbini' };
   if (S.energy < 20) return { text: '😪 Kiệt sức — về ký túc xá nghỉ ngơi', target: 'dorm' };
@@ -278,7 +282,7 @@ export function objective(S) {
   if (isNewYear(S)) return { text: '⛩️ Năm mới — ghé đền đi lễ đầu năm', target: 'shrine' };
   if (S.exam && !S.exam.taken) return { text: `📝 Đã đăng ký thi JLPT ${S.exam.lv} — ôn bài ở lớp hoặc tự học trong ký túc xá`, target: (dow(S) < 5 && t >= 17.5 * 60 && t < 21 * 60) || (dow(S) >= 5 && t >= 10 * 60 && t < 17 * 60) ? 'class' : 'dorm' };
   if (canRegister(S)) return { text: '📝 Đang mở đăng ký thi JLPT — đăng ký qua mạng ở bàn học trong ký túc xá', target: 'dorm' };
-  if (dow(S) === 5 && !S.worked && t <= 9 * 60) return { text: '⏱️ Thứ Bảy: có thể làm thêm buổi sáng (đến trước 09:00)', target: 'work' };
+  if (dow(S) === 5 && !S.worked && t <= 9 * 60) return { text: '⏱️ Thứ Bảy: có thể làm thêm buổi sáng (đến trước 09:00)', target: wp };
   if (S.money >= 25000 && S.debt > 0 && t >= 10 * 60 && t < 19 * 60) return { text: '💸 Có tiền rồi — ghé tiệm chuyển tiền gửi về trả nợ', target: 'remit' };
   if (!S.today.class && ((dow(S) < 5 && t >= 17.5 * 60 && t < 21 * 60) || (dow(S) >= 5 && t >= 10 * 60 && t < 17 * 60)))
     return { text: '📝 Lớp tiếng Nhật đang mở — học miễn phí', target: 'class' };
@@ -288,7 +292,7 @@ export function objective(S) {
 function arrowPoint(S, M, target) {
   if (!target) return null;
   if (!M.outdoor) {
-    const here = M.key === interiorKeyFor(S, target) || (target === 'work' && M.key === 'work_' + S.job);
+    const here = M.key === placeInterior(S, target);
     if (here) return null;
     return { x: M.door.x * TS + 8, y: M.door.y * TS + 8 };
   }
@@ -359,11 +363,12 @@ function findTarget(S, M) {
     const ex = M.door.x * TS + 8, ey = M.door.y * TS + 4;
     const de = Math.hypot(ex - px, ey - py);
     if (de < 16) { bd = de; best = { type: 'exit', label: 'Ra ngoài' }; }
+    const workHere = S.emp && S.emp.co && placeInterior(S, S.emp.co) === M.key;
     for (const o of M.objects) {
-      if (!o.act) continue;
+      if (!o.act && !(workHere && o.slot && o.slot.kind === 'work')) continue;
       const cx = Math.max(o.x * TS, Math.min(px, (o.x + o.w) * TS)), cy = Math.max(o.y * TS, Math.min(py - 4, (o.y + o.h) * TS));
       const d = Math.hypot(cx - px, cy - (py - 4));
-      if (d < 13 && d < bd) { bd = d; best = { type: 'obj', obj: o, label: o.name }; }
+      if (d < 13 && d < bd) { bd = d; best = { type: 'obj', obj: o, label: o.act ? o.name : `${o.name} (vị trí làm việc của bạn)` }; }
     }
   }
   for (const n of drawn) {
@@ -519,7 +524,7 @@ export const worldScene = {
       for (const b of M.buildings) {
         const X = b.x * TS, W = b.w * TS;
         if (X + W < cx - 20 || X > cx + vw + 20) continue;
-        if (b.sign) text(c, b.id === 'work' ? JOBS[S.job].sign : b.jp, b.sign.x, b.sign.y, { size: 7, color: '#ffe7a3', align: 'center', shadow: false });
+        if (b.sign) text(c, b.id === 'work' ? JOBS[orig(S)].sign : b.jp, b.sign.x, b.sign.y, { size: 7, color: '#ffe7a3', align: 'center', shadow: false });
         pill(c, buildingName(b, S), X + W / 2, b.y * TS - 5, { size: 6 });
       }
       if (M.id === 'town') pill(c, 'Công viên', 12 * TS + 8, 28 * TS + 6, { size: 6, bg: 'rgba(30,70,40,.8)' });

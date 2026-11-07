@@ -4,7 +4,7 @@ import { studyJapanese } from './quiz.js';
 import { canRegister, register, nextSessionText } from './exam.js';
 import { applyPR } from './career.js';
 import { JOBS, PHRASES, LONG_TIPS, TEACHER_TALK } from './data.js';
-import { modal, chips, toast } from './ui.js';
+import { modal, chips, toast, esc } from './ui.js';
 import { sleep } from './days.js';
 import { workActions } from './work.js';
 import { sfx } from './audio.js';
@@ -14,6 +14,8 @@ import { enterBuilding, exitBuilding, travelTo, curMap } from './town.js';
 import { npcsAt, stateOf } from './ai/sim.js';
 import { AI_PLACES } from './ai/world.js';
 import { COMPANY } from './content/companies.js';
+import { workName, RANKS, schoolActions } from './jobs.js';
+import { placeInterior } from './world/scene.js';
 import { INTERIOR_OF } from './content/interiors.js';
 import { community } from './community.js';
 import { fam, famGain, canVisitHome, visitHome } from './family.js';
@@ -135,8 +137,8 @@ const PLACES = {
     },
   },
   work: {
-    name: (S) => JOBS[S.job].place, jp: (S) => JOBS[S.job].jp,
-    desc: (S) => `${JOBS[S.job].desc}<br>Lương chờ lĩnh: <b>${yen(S.wage)}</b> (trả vào Chủ Nhật).`,
+    name: (S) => workName(S), jp: (S) => JOBS[S.job].jp,
+    desc: (S) => `${S.emp ? esc(S.emp.title) + ' · ' + RANKS[S.emp.rank] + '. ' : ''}${JOBS[S.job].desc}<br>Lương chờ lĩnh: <b>${yen(S.wage)}</b> (trả vào Chủ Nhật cuối tháng).`,
     actions: workActions,
   },
   park: {
@@ -203,7 +205,7 @@ const PLACES = {
     desc: () => 'Nhiều điều dưỡng ở đây là lao động Việt Nam theo visa Kỹ năng đặc định ngành điều dưỡng.',
     actions: () => [
       { label: '🤝 Làm tình nguyện: trò chuyện với các cụ', sub: '60 phút', minutes: 60, fx: { mood: 7, jp: 1.5 }, cond: (s) => (s.today.careVol ? 'Hôm nay đã làm rồi' : null), after: (s) => { s.today.careVol = true; }, res: 'Một cụ bà kể chuyện thời trẻ, bạn nghe được một nửa. Cụ nắm tay bạn: 「ありがとうね」.' },
-      { label: '📄 Hỏi về việc điều dưỡng', minutes: 10, res: 'Ngành điều dưỡng (介護) cần người. Muốn làm theo visa Kỹ năng đặc định phải thi kỹ năng điều dưỡng + tiếng Nhật điều dưỡng, cộng với JLPT N4 trở lên. (Chuyển việc sẽ có ở bản cập nhật nghề nghiệp.)' },
+      { label: '📄 Hỏi về việc điều dưỡng', minutes: 10, res: 'Ngành điều dưỡng (介護) cần người. Muốn làm theo visa Kỹ năng đặc định phải thi kỹ năng điều dưỡng + tiếng Nhật điều dưỡng, cộng với JLPT N4 trở lên. (Ứng tuyển trong 📱 → Việc làm; thi chứng chỉ điều dưỡng cũng ở đó.)' },
     ],
   },
   apt: {
@@ -391,7 +393,10 @@ export async function interact(target) {
   if (target.type === 'exit') return exitBuilding();
   if (target.type === 'obj') {
     const o = target.obj;
+    const workHere = S.emp && S.emp.co && placeInterior(S, S.emp.co) === curMap(S).key;
     if (o.act === 'company') return companyMenu(S, curMap(S).key);
+    if (o.act === 'work' && !workHere) { await modal({ title: o.name, text: 'Bạn không còn làm ở đây.' }); return; }
+    if (!o.act) return openPlace('work', ['Vào ca', 'Làm thêm', 'Thi tay nghề', 'Đã xong', 'được nghỉ', 'Chủ Nhật', 'Thay', 'Rửa tay', 'bảng', 'thất nghiệp']);
     return openPlace(o.act, o.pick || null);
   }
   if (target.type === 'building') {
@@ -410,9 +415,15 @@ async function companyMenu(S, key) {
   const C = COMPANY[key];
   if (!C) return;
   const staff = npcsAt(S, key).filter((id) => stateOf(S, id).act === 'work');
+  const extra = [...(key === 'it' ? schoolActions(S) : []), ...(S.emp && S.emp.co === key ? workActions(S).filter((a) => /Chuyển|Thi tay/.test(a.label)) : [])];
+  if (extra.length || (S.emp && S.emp.co === key)) {
+    const i = await modal({ who: C.jp, title: C.name, text: S.emp && S.emp.co === key ? `Bạn đang làm ở đây: <b>${esc(S.emp.title)}</b> · ${RANKS[S.emp.rank]}. Vào ca ở vị trí làm việc trong xưởng / văn phòng.` : esc(C.note), choices: [...extra.map((a, k) => { const r = reasonOf(a, S); return { label: a.label, sub: a.sub, value: k, disabled: !!r, reason: r }; }), { label: '📄 Thông tin tuyển dụng', value: -2 }, { label: '✖ Thôi', value: -1, cancel: true }] });
+    if (i >= 0) { await extra[i].run(S); return; }
+    if (i === -1) return;
+  }
   await modal({
     who: C.jp, title: C.name, wide: true,
-    html: `<div class="payslip"><div class="prow"><span>Ngành</span><span>${C.sector}</span></div><div class="prow"><span>Lương tham khảo</span><span>${C.pay}</span></div><div class="prow"><span>Yêu cầu</span><span>${C.req}</span></div><div class="prow"><span>Visa phù hợp</span><span>${C.visa}</span></div><div class="prow"><span>Đang làm việc</span><span>${staff.length} người</span></div></div><p class="dim">${C.note}</p><p class="dim">📄 Nộp hồ sơ, phỏng vấn, chuyển việc sẽ có ở bản cập nhật nghề nghiệp (v3.3).</p>`,
+    html: `<div class="payslip"><div class="prow"><span>Ngành</span><span>${C.sector}</span></div><div class="prow"><span>Lương tham khảo</span><span>${C.pay}</span></div><div class="prow"><span>Yêu cầu</span><span>${C.req}</span></div><div class="prow"><span>Visa phù hợp</span><span>${C.visa}</span></div><div class="prow"><span>Đang làm việc</span><span>${staff.length} người</span></div></div><p class="dim">${C.note}</p><p class="dim">📄 Ứng tuyển, phỏng vấn: mở 📱 → Việc làm.</p>`,
     ok: 'Đã hiểu',
   });
 }

@@ -10,6 +10,7 @@ import { fixedEvent, markFixed, randomEvent, runEvent } from './events.js';
 import { sfx } from './audio.js';
 import { workQuiz } from './quiz.js';
 import { shiftRate } from './payroll.js';
+import { recordShift, employed, workName } from './jobs.js';
 import { player, curMap } from './town.js';
 import { TS } from './pixel.js';
 
@@ -99,7 +100,7 @@ export async function startShift(S, overtime) {
   // đứng vào vị trí làm việc, bật hoạt ảnh làm việc
   standAtStation(S);
   let score;
-  if (S.settings && S.settings.shiftMode === 'mini') {
+  if (S.settings && S.settings.shiftMode === 'mini' && job.game) {
     const diff = Math.min(0.6, S.stats.shifts / 40);
     const res = await runScene((done) => SCENES[job.game](diff, done));
     score = res.score;
@@ -127,6 +128,7 @@ export async function startShift(S, overtime) {
   });
   S.worked = true;
   S.lastScore = score;
+  recordShift(S, score);
   S.stats.shifts++;
   S.stats.earned += pay;
   S.stats.best = Math.max(S.stats.best, score);
@@ -150,6 +152,7 @@ export async function startShift(S, overtime) {
 export function workActions(S) {
   const job = JOBS[S.job];
   const a = [];
+  if (!employed(S)) return [{ label: '🚫 Bạn đang thất nghiệp', cond: () => 'Tìm việc mới trong 📱 → Việc làm' }];
   const sat = (S.day - 1) % 7 === 5;
   a.push({ label: S.job === 'build' ? '⛑️ Thay đồ: lấy mũ bảo hộ, đai an toàn' : '👕 Thay đồng phục', sub: S.today.uniform ? 'Đã chuẩn bị' : 'Nên làm trước khi vào ca', minutes: 5, cond: (s) => (s.today.uniform ? 'Đã thay rồi' : null), after: (s) => { s.today.uniform = true; }, res: S.job === 'build' ? 'Mũ cài quai, đai móc chắc. 「ヨシ！」' : 'Mũ trùm tóc, áo trắng, ủng. Lăn bụi quần áo xong.' });
   if (S.job === 'factory') a.push({ label: '🧼 Rửa tay, sát khuẩn', minutes: 3, cond: (s) => (s.today.washed ? 'Đã rửa rồi' : null), after: (s) => { s.today.washed = true; }, res: 'Rửa tay 30 giây, sát khuẩn cồn. Vệ sinh là trên hết (衛生第一).' });
