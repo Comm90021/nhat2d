@@ -1,5 +1,7 @@
 // Các địa điểm trong thị trấn + nói chuyện với NPC.
-import { G, MIDNIGHT, RATE, applyFx, advance, clockStr, yen, vnd, dow, seasonIdx, addLog, save } from './state.js';
+import { G, MIDNIGHT, RATE, applyFx, advance, clockStr, yen, vnd, dow, seasonIdx, addLog, save, isNewYear, year } from './state.js';
+import { studyJapanese } from './quiz.js';
+import { canRegister, register, nextSessionText } from './exam.js';
 import { JOBS, PHRASES, LONG_TIPS, TEACHER_TALK } from './data.js';
 import { modal, chips, toast } from './ui.js';
 import { sleep } from './days.js';
@@ -33,7 +35,8 @@ const PLACES = {
         after: (s) => { s.today.call = true; if (s.time >= H(22) && Math.random() < 0.5) s.flags.lateCall = true; },
         res: (s) => (s.time >= H(22) ? 'Nói chuyện vui quá, quên mất đã khuya. Tường ký túc xá mỏng lắm…' : 'Mẹ hỏi ăn uống thế nào, bố dặn giữ sức khỏe. Bạn thấy nhẹ lòng hơn.'),
       },
-      { label: '📖 Tự học tiếng Nhật', minutes: 60, energy: 10, fx: { jp: 1.2, energy: -8, mood: -1 }, res: 'Bạn ôn kanji và nghe lại băng hội thoại.' },
+      { label: '📖 Tự học tiếng Nhật', sub: '3 câu hỏi · 60 phút', minutes: 60, energy: 10, run: selfStudy },
+      { label: '📝 Đăng ký thi JLPT qua mạng', sub: canRegister(S) ? 'Đang mở đăng ký · lệ phí ¥7,500' : nextSessionText(S), cond: (s) => (canRegister(s) ? null : 'Chưa tới đợt đăng ký'), run: register },
     ],
   },
   konbini: {
@@ -107,7 +110,7 @@ const PLACES = {
         { label: '🎴 Rút quẻ omikuji', cost: 100, minutes: 10, cond: (s) => (s.today.omikuji ? 'Mỗi ngày rút một lần thôi' : null), run: omikuji },
         { label: '🙏 Cầu nguyện', sub: 'Thả đồng 5¥', cost: 5, minutes: 10, fx: { mood: 3 }, cond: (s) => (s.today.pray ? 'Hôm nay đã cầu rồi' : null), after: (s) => { s.today.pray = true; }, res: 'Đồng 5 yên (五円, go-en) đồng âm với ご縁 — "duyên lành". Người Nhật hay thả đồng 5 yên khi cầu nguyện.' },
       ];
-      if (S.flags.newyear) a.unshift({ label: '⛩️ Đi lễ đầu năm (初詣)', minutes: 60, cost: 500, fx: { mood: 14, health: 2 }, cond: (s) => (s.today.hatsu ? 'Đã đi lễ rồi' : null), after: (s) => { s.today.hatsu = true; }, res: 'Bạn xếp hàng cùng mọi người, cầu cho gia đình bình an và năm mới may mắn. 「あけましておめでとうございます！」' });
+      if (isNewYear(S)) a.unshift({ label: '⛩️ Đi lễ đầu năm (初詣)', minutes: 60, cost: 500, fx: { mood: 14, health: 2 }, after: (s) => { s.flags.hatsu = year(s); }, res: 'Bạn xếp hàng cùng mọi người, cầu cho gia đình bình an và năm mới may mắn. 「あけましておめでとうございます！」' });
       return a;
     },
   },
@@ -188,20 +191,26 @@ async function doAction(a, S) {
 }
 
 // ---------- lớp học: trắc nghiệm ----------
+function progressHtml(r) {
+  const p = r.p;
+  const pct = Math.min(100, Math.round((p.xp / p.need) * 100));
+  return `<div class="payslip"><div class="prow"><span>Trình độ hiện tại</span><span><b>${p.cur}</b></span></div>` +
+    (p.done ? '' : `<div class="prow"><span>Tiến độ lên ${p.target}</span><span>${pct}% · chính xác ${Math.round(p.acc * 100)}%</span></div>
+    <div class="pbar"><i style="width:${pct}%"></i></div><div class="dim">Cần đủ điểm và độ chính xác ≥ 70% trên các câu gần nhất của cấp ${p.target}.</div>`) + '</div>';
+}
+// Lớp có giáo viên: điểm ×1.3
 async function quiz(S) {
   S.today.class = true;
-  const qs = shuffle(PHRASES).slice(0, 5);
-  let ok = 0;
-  for (let n = 0; n < qs.length; n++) {
-    const q = qs[n];
-    const opts = shuffle([q, ...shuffle(PHRASES.filter((p) => p !== q)).slice(0, 3)]);
-    const right = await modal({ who: `Lớp tiếng Nhật · Câu ${n + 1}/5`, title: q.jp, jp: q.ro, text: 'Câu này nghĩa là gì?', choices: opts.map((o) => ({ label: o.vi, value: o === q })) });
-    if (right) { ok++; sfx('good'); toast('✅ Đúng rồi!'); if (!S.learned.includes(q.id)) S.learned.push(q.id); }
-    else { sfx('bad'); toast(`❌ Sai — ${q.jp} = ${q.vi}`, 3200); }
-  }
+  const r = await studyJapanese(S, 5, { title: 'Lớp tối · Câu', mult: 1.3 });
   advance(S, 90);
-  const out = applyFx(S, { jp: ok * 0.9 + 0.5, energy: -8, mood: ok >= 4 ? 3 : 0 });
-  await modal({ title: `Kết quả: ${ok}/5 câu đúng`, text: ok >= 4 ? 'Cô Mori khen: 「すごい！」' : 'Cô Mori động viên: 「頑張って！」 (Cố lên!)', html: chips(out) });
+  const out = applyFx(S, { energy: -8, mood: r.ok >= 4 ? 3 : 0 });
+  await modal({ title: `Kết quả: ${r.ok}/5 câu đúng`, text: r.ok >= 4 ? 'Cô Mori khen: 「すごい！」' : 'Cô Mori động viên: 「頑張って！」 (Cố lên!)', html: progressHtml(r) + chips(out) });
+}
+async function selfStudy(S) {
+  const r = await studyJapanese(S, 3, { title: 'Tự học · Câu' });
+  advance(S, 60);
+  const out = applyFx(S, { energy: -8, mood: -1 });
+  await modal({ title: `Tự học: ${r.ok}/3 câu đúng`, html: progressHtml(r) + chips(out) });
 }
 
 // ---------- đền: rút quẻ ----------

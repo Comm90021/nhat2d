@@ -1,5 +1,6 @@
 // Hộp thoại, thông báo, HUD (DOM).
-import { STAT_INFO, clockStr, DOW, season, dow, yen, vnd, jpLevel } from './state.js';
+import { STAT_INFO, clockStr, DOW, season, dow, yen, vnd, jpLevel, year, month, bestCert } from './state.js';
+import { progress } from './learning.js';
 import { sfx } from './audio.js';
 import { input } from './input.js';
 
@@ -131,7 +132,7 @@ export function showHud(on) {
 const BAR_KEYS = ['health', 'energy', 'full', 'mood'];
 export function updateHud(S, hintText) {
   if (!S) return;
-  $('h-day').textContent = `Ngày ${S.day}/56`;
+  $('h-day').textContent = `Năm ${year(S)} · Tháng ${month(S)}`;
   $('h-dow').textContent = `${DOW[dow(S)]} · ${season(S).name} ${season(S).jp}`;
   $('h-clock').textContent = clockStr(S.time);
   $('h-clock').classList.toggle('late', S.time >= 22 * 60);
@@ -139,7 +140,10 @@ export function updateHud(S, hintText) {
   yenEl.textContent = yen(S.money);
   yenEl.classList.toggle('neg', S.money < 0);
   $('h-debt').textContent = S.debt > 0 ? `Nợ: ${vnd(S.debt)}` : 'Đã trả hết nợ 🎉';
-  $('h-extra').textContent = `🗣️ ${jpLevel(S.jp)} · ⭐ ${Math.round(S.rep)}${S.sick > 0 ? ' · 🤒 Ốm' : ''}${S.wage ? ' · 🧾 ' + yen(S.wage) : ''}`;
+  const p = progress(S.lang);
+  const jpTxt = p.done ? 'N1' : `${p.cur} → ${p.target} ${Math.min(99, Math.round((p.xp / p.need) * 100))}%`;
+  const cert = bestCert(S);
+  $('h-extra').textContent = `🗣️ ${jpTxt}${cert ? ' · 📜' + cert : ''} · ⭐ ${Math.round(S.rep)}${S.sick > 0 ? ' · 🤒' : ''}${S.wage ? ' · 🧾 ' + yen(S.wage) : ''}`;
   for (const k of BAR_KEYS) {
     const el = $('bar-' + k);
     const v = Math.round(S[k]);

@@ -46,14 +46,14 @@ export function factoryScene(diff, done) {
   const core = {
     update(dt, v, t, dur) {
       const { beltY, zx0, zx1 } = L(v);
-      const speed = (v.w / 6.5) * (1 + diff * 0.5 + (t / dur) * 0.45);
+      const speed = (v.w / 9) * (1 + diff * 0.4 + (t / dur) * 0.3);
       beltOff = (beltOff + speed * dt) % 10;
       spawn -= dt;
       const last = items[items.length - 1];
       if (spawn <= 0 && (!last || last.x > 38)) {
         const bad = Math.random() < 0.36;
         items.push({ x: -14, bad, type: bad ? pick(DEFECTS) : 'ok' });
-        spawn = (0.75 + Math.random() * 0.7) / (1 + diff * 0.45 + (t / dur) * 0.3);
+        spawn = (1 + Math.random() * 0.8) / (1 + diff * 0.35 + (t / dur) * 0.2);
       }
       for (const it of items) it.x += speed * dt;
       while (items.length && items[0].x > v.w + 10) {

@@ -34,13 +34,13 @@ export function buildScene(diff, done) {
       newBeam(v);
       return;
     }
-    if (Math.abs(mov.x - top.x) <= 2) {
+    if (Math.abs(mov.x - top.x) <= 4) {
       perfects++; prec += 1;
       blocks.push({ x: top.x, w: top.w });
       P.add(top.x + top.w / 2, y - 6, 'Hoàn hảo!', '#ffe066'); sfx('coin');
     } else {
       prec += ov / top.w;
-      blocks.push({ x: l, w: ov });
+      const nw = Math.max(ov, Math.min(top.w, 20)); blocks.push({ x: Math.min(l, top.x + top.w - nw), w: nw });
       if (mov.x < top.x) falling.push({ x: mov.x, w: top.x - mov.x, y, vy: 0 });
       else falling.push({ x: top.x + top.w, w: mov.x + mov.w - (top.x + top.w), y, vy: 0 });
       P.add(l + ov / 2, y - 6, ov / top.w > 0.85 ? 'Tốt!' : 'Lệch…', '#fff'); sfx('tap');
@@ -55,7 +55,7 @@ export function buildScene(diff, done) {
       if (!blocks) init(v);
       if (floors < TARGET) {
         const wind = floors >= 5 ? 1 + 0.4 * Math.sin(t * 2.3) : 1;
-        const sp = v.w * 0.42 * (1 + diff * 0.45 + floors * 0.05) * wind;
+        const sp = v.w * 0.32 * (1 + diff * 0.35 + floors * 0.03) * wind;
         mov.x += mov.d * sp * dt;
         if (mov.x < 0) { mov.x = 0; mov.d = 1; }
         if (mov.x > v.w - mov.w) { mov.x = v.w - mov.w; mov.d = -1; }
@@ -97,7 +97,7 @@ export function buildScene(diff, done) {
       P.draw(c);
     },
     result() {
-      const score = Math.max(0, Math.min(1, prec / TARGET - misses * 0.04));
+      const score = Math.max(0, Math.min(1, prec / TARGET));
       return { score, lines: [`Số tầng dựng được: ${floors}/${TARGET}`, `Đặt hoàn hảo: ${perfects}`, `Trượt rơi: ${misses}`] };
     },
   };

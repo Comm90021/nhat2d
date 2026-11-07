@@ -8,6 +8,8 @@ import { farmScene } from './mini/farm.js';
 import { buildScene } from './mini/build.js';
 import { fixedEvent, markFixed, randomEvent, runEvent } from './events.js';
 import { sfx } from './audio.js';
+import { workQuiz } from './quiz.js';
+import { certBonus } from './exam.js';
 
 const SCENES = { factory: factoryScene, farm: farmScene, build: buildScene };
 
@@ -71,11 +73,21 @@ export async function startShift(S, overtime) {
   const late = !overtime && S.time > 8 * 60 + 2;
   await greet(S, late);
   if (S.job === 'build') await safety(S);
-  const diff = Math.min(1, S.stats.shifts / 28 + seasonIdx(S) * 0.08);
-  const res = await runScene((done) => SCENES[job.game](diff, done));
-  const score = res.score;
+  let score;
+  if (S.settings && S.settings.shiftMode === 'mini') {
+    const diff = Math.min(0.6, S.stats.shifts / 40);
+    const res = await runScene((done) => SCENES[job.game](diff, done));
+    score = res.score;
+    S.skill[S.job] = (S.skill[S.job] || 0) + Math.round(score * 3);
+  } else {
+    const n = overtime ? 3 : 4;
+    await modal({ who: job.place, title: overtime ? '⏱️ Ca thứ Bảy' : `${job.icon} Vào ca`, text: `Trong ca sẽ có <b>${n} tình huống</b>. Chọn cách xử lý đúng — đúng càng nhiều, đánh giá càng cao và tay nghề càng lên.`, ok: 'Bắt đầu →' });
+    const ok = await workQuiz(S, S.job, n, { who: job.place });
+    score = ok / n;
+    S.skill[S.job] = (S.skill[S.job] || 0) + ok;
+  }
   const base = overtime ? job.pay * 0.625 : job.pay;
-  const pay = Math.round((base * (0.75 + 0.45 * score)) / 10) * 10;
+  const pay = Math.round((base * (0.75 + 0.45 * score) * (1 + certBonus(S))) / 10) * 10;
   const k = overtime ? 0.55 : 1;
   S.time = Math.max(S.time + 60, overtime ? 13 * 60 : 17 * 60);
   const out = applyFx(S, {
@@ -111,8 +123,8 @@ export async function startShift(S, overtime) {
 export function workActions(S) {
   const job = JOBS[S.job];
   const a = [];
-  const sat = !isWorkday(S) && S.day % 7 === 6;
-  if (S.today.noWork) a.push({ label: '🚫 Hôm nay công ty nghỉ', cond: () => 'Bão — mọi người ở nhà' });
+  const sat = (S.day - 1) % 7 === 5;
+  if (S.today.noWork) a.push({ label: '🚫 Hôm nay bạn được nghỉ', cond: () => 'Bão hoặc ngày đi thi' });
   else if (S.worked) a.push({ label: '✅ Đã xong ca hôm nay', cond: () => 'Mai quay lại nhé' });
   else if (isWorkday(S)) {
     a.push({

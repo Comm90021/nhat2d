@@ -1,6 +1,8 @@
 // Trạng thái game, lịch, lưu/tải. Không phụ thuộc DOM.
+import { newLang, passiveXp, levelLabel } from './learning.js';
+
 export const SAVE_KEY = 'nhatky-tts-2d-v1';
-export const TOTAL_DAYS = 56;          // 4 mùa x 14 ngày (1 năm rút gọn)
+export const YEAR_DAYS = 56;           // 1 năm trong game = 4 mùa x 14 ngày, bắt đầu từ tháng 4
 export const DAYS_PER_SEASON = 14;
 export const START_DEBT = 40000000;    // nợ ở quê (VND)
 export const RATE = 170;               // 1 yên = 170 đồng
@@ -24,20 +26,22 @@ export const STAT_INFO = {
   energy: { label: 'Năng lượng', icon: '⚡' },
   full: { label: 'No bụng', icon: '🍙' },
   mood: { label: 'Tinh thần', icon: '🙂' },
-  jp: { label: 'Tiếng Nhật', icon: '🗣️' },
+  jp: { label: 'Tiếng Nhật (xp)', icon: '🗣️' },
   rep: { label: 'Uy tín', icon: '⭐' },
   money: { label: 'Tiền', icon: '💴' },
   wage: { label: 'Lương chờ lĩnh', icon: '🧾' },
 };
-const BOUNDED = ['health', 'energy', 'mood', 'full', 'jp', 'rep'];
+const BOUNDED = ['health', 'energy', 'mood', 'full', 'rep'];
 
 export function newState({ name, gender, look, job }) {
   return {
-    v: 1, name, gender, look, job,
+    v: 2, name, gender, look, job,
     day: 1, time: DAY_START,
     money: 30000, debt: START_DEBT, wage: 0,
-    health: 85, energy: 100, mood: 70, full: 60, jp: 8, rep: 50,
-    sick: 0, worked: false, lastScore: 0.6, cert: null,
+    health: 85, energy: 100, mood: 70, full: 60, rep: 50,
+    lang: newLang(), certs: [], exam: null, skill: {},
+    settings: { shiftMode: 'quiz' },
+    sick: 0, worked: false, lastScore: 0.6,
     weather: 'clear',
     today: {}, flags: {},
     inv: { ingredients: 0 },
@@ -48,7 +52,27 @@ export function newState({ name, gender, look, job }) {
   };
 }
 
-export const seasonIdx = (S) => Math.min(3, Math.floor((S.day - 1) / DAYS_PER_SEASON));
+// Bản lưu cũ (v1: chỉ có 56 ngày, tiếng Nhật là 1 con số) → v2
+export function migrate(S) {
+  if (S.v === 1) {
+    S.lang = newLang();
+    passiveXp(S.lang, Math.min(30, (S.jp || 0) * 0.6));
+    delete S.jp;
+    S.certs = S.cert ? [{ type: 'JLPT', lv: S.cert, day: S.day }] : [];
+    delete S.cert;
+    S.exam = null; S.skill = {}; S.settings = { shiftMode: 'quiz' };
+    S.v = 2;
+  }
+  return S;
+}
+
+// ---------- lịch ----------
+export const doy = (S) => ((S.day - 1) % YEAR_DAYS) + 1;               // ngày trong năm: 1..56
+export const year = (S) => Math.floor((S.day - 1) / YEAR_DAYS) + 1;
+export const monthOf = (d) => ((3 + Math.floor(((d - 1) * 12) / YEAR_DAYS)) % 12) + 1; // 1..12; ngày 1 = tháng 4, mỗi mùa đúng 3 tháng
+export const month = (S) => monthOf(doy(S));
+export const isNewYear = (S) => S.flags.newyear === year(S) && doy(S) >= 41 && doy(S) <= 45 && S.flags.hatsu !== year(S);
+export const seasonIdx = (S) => Math.min(3, Math.floor((doy(S) - 1) / DAYS_PER_SEASON));
 export const season = (S) => SEASONS[seasonIdx(S)];
 export const dow = (S) => (S.day - 1) % 7;
 export const isWorkday = (S) => dow(S) < 5;
@@ -62,8 +86,13 @@ export function clockStr(min) {
 export const yen = (n) => (n < 0 ? '-¥' : '¥') + Math.abs(Math.round(n)).toLocaleString('en-US');
 export const vnd = (n) => Math.round(n).toLocaleString('vi-VN') + '₫';
 
-export function jpLevel(jp) {
-  return jp >= 90 ? 'N1' : jp >= 75 ? 'N2' : jp >= 55 ? 'N3' : jp >= 35 ? 'N4' : jp >= 18 ? 'N5' : 'Sơ cấp';
+export const jpLevel = (S) => levelLabel(S.lang);
+// Chứng chỉ JLPT cao nhất ('' nếu chưa có)
+export function bestCert(S) {
+  const order = ['N5', 'N4', 'N3', 'N2', 'N1'];
+  let best = '';
+  for (const c of S.certs || []) if (c.type === 'JLPT' && order.indexOf(c.lv) > order.indexOf(best)) best = c.lv;
+  return best;
 }
 export const energyCap = (S) => (S.sick > 0 ? 70 : 100);
 
@@ -76,6 +105,7 @@ export function applyFx(S, fx) {
     if (k === 'rel') { for (const n in v) S.rel[n] = (S.rel[n] || 0) + v[n]; continue; }
     if (typeof v !== 'number' || !v) continue;
     if (k === 'money' || k === 'wage') { S[k] += v; out.push([k, v]); continue; }
+    if (k === 'jp') { if (v > 0) { passiveXp(S.lang, v); out.push(['jp', v * 0.6]); } continue; }
     if (BOUNDED.includes(k)) {
       const cap = k === 'energy' ? energyCap(S) : 100;
       const before = S[k];
@@ -112,7 +142,7 @@ export function load() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
     const S = JSON.parse(raw);
-    return S && S.v === 1 ? S : null;
+    return S && (S.v === 1 || S.v === 2) ? migrate(S) : null;
   } catch (e) { return null; }
 }
 export function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } }

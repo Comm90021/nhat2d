@@ -34,7 +34,7 @@ export function farmScene(diff, done) {
   const core = {
     update(dt, v, t, dur) {
       const L = lay(v); lastL = L;
-      const ripe = 1.9 - diff * 0.6;
+      const ripe = 2.8 - diff * 0.6;
       for (const cl of cells) {
         if (cl.s === 'none') continue;
         cl.t -= dt;
@@ -52,7 +52,7 @@ export function farmScene(diff, done) {
           const cl = cells[free[Math.floor(Math.random() * free.length)]];
           cl.s = 'green'; cl.t = 1.1 + Math.random() * 0.9; cl.gold = Math.random() < 0.07;
         }
-        spawn = (0.35 + Math.random() * 0.4) / (1 + diff * 0.6);
+        spawn = (0.5 + Math.random() * 0.5) / (1 + diff * 0.4);
       }
       if (input.hit('ArrowLeft') || input.hit('KeyA')) { cursor = (cursor + N - 1) % N; showCursor = true; }
       if (input.hit('ArrowRight') || input.hit('KeyD')) { cursor = (cursor + 1) % N; showCursor = true; }

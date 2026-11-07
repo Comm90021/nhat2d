@@ -1,5 +1,5 @@
 // Sự kiện: cố định theo ngày + ngẫu nhiên (buổi sáng / sau ca làm).
-import { G, applyFx, advance, addLog, isWorkday, dow, seasonIdx, yen, jpLevel } from './state.js';
+import { G, applyFx, advance, addLog, isWorkday, dow, seasonIdx, yen, doy, year } from './state.js';
 import { modal, chips } from './ui.js';
 
 // Lựa chọn: { label, sub, need (yên), cond(S)->lý do|null, fx (obj|fn), res (str|fn), minutes, setTime,
@@ -7,12 +7,12 @@ import { modal, chips } from './ui.js';
 export const EVENTS = [
   // ===================== cố định =====================
   {
-    id: 'hanami', day: 6, when: 'morning', who: 'Nhóm LINE của công ty', title: '🌸 Hanami cùng công ty', jp: 'お花見しましょう！',
-    text: 'Hôm nay công ty tổ chức ngắm hoa anh đào ở công viên. Mọi người trải bạt dưới gốc cây, mỗi người góp 1.000¥ tiền đồ ăn.',
+    id: 'hanami', day: 4, when: 'after', who: 'Tổ trưởng Yamada', title: '🌸 Ngắm hoa đêm cùng công ty', jp: '夜桜を見に行きましょう！',
+    text: 'Tối nay sau giờ làm, công ty tổ chức ngắm hoa anh đào đêm (夜桜) ở công viên. Mọi người trải bạt dưới gốc cây, mỗi người góp 1.000¥ tiền đồ ăn.',
     choices: [
-      { label: 'Tham gia!', sub: '−1.000¥ · hết buổi sáng', need: 1000, minutes: 240, fx: { money: -1000, mood: 15, rep: 4, jp: 1, full: 35 },
+      { label: 'Tham gia!', sub: '−1.000¥ · khoảng 3 tiếng', need: 1000, minutes: 180, fx: { money: -1000, mood: 15, rep: 4, jp: 1, full: 35 },
         res: 'Trưởng xưởng hát karaoke lạc tông, chị Yamada dạy bạn hô 「乾杯！」(cạn ly). Lần đầu tiên bạn thấy đồng nghiệp cười nhiều đến thế.' },
-      { label: 'Ở nhà ngủ bù', fx: { energy: 15, rep: -1 }, res: 'Bạn ngủ thêm một giấc. Hôm sau nghe mọi người kể lại, thấy hơi tiếc.' },
+      { label: 'Xin phép về nghỉ', fx: { energy: 8, rep: -1 }, res: 'Bạn về ký túc xá nghỉ. Hôm sau nghe mọi người kể lại, thấy hơi tiếc.' },
     ],
   },
   {
@@ -26,7 +26,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'tsuyu', day: 15, when: 'morning', who: 'Dự báo thời tiết', title: '☔ Bắt đầu mùa mưa', jp: '梅雨入り',
+    id: 'tsuyu', day: 12, when: 'morning', who: 'Dự báo thời tiết', title: '☔ Bắt đầu mùa mưa', jp: '梅雨入り',
     text: 'Mùa Hạ đến cùng mùa mưa tsuyu: ẩm ướt, quần áo phơi mãi không khô. Sau đó sẽ là những ngày nắng nóng hầm hập.',
     choices: [{ label: 'Nhớ uống đủ nước, tránh say nắng (熱中症)', fx: { jp: 0.5 } }],
   },
@@ -55,7 +55,7 @@ export const EVENTS = [
     choices: [{ label: 'OK' }],
   },
   {
-    id: 'typhoon', day: 33, when: 'morning', who: 'Thông báo của công ty', title: '🌀 Bão đổ bộ', jp: '台風のため、本日は休業です',
+    id: 'typhoon', day: 26, when: 'morning', who: 'Thông báo của công ty', title: '🌀 Bão đổ bộ', jp: '台風のため、本日は休業です',
     text: 'Bão lớn đổ bộ. Công ty cho nghỉ làm, yêu cầu mọi người ở trong nhà đến chiều.',
     choices: [
       { label: 'Ở yên trong phòng đến chiều', today: { noWork: true }, setTime: 16 * 60,
@@ -64,22 +64,12 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'jlpt', day: 41, when: 'morning', who: 'Kỳ thi năng lực tiếng Nhật', title: '📝 Hôm nay thi JLPT', jp: '日本語能力試験',
-    text: 'Bạn đã đăng ký thi từ mấy tháng trước. Kết quả phụ thuộc vào trình độ tiếng Nhật hiện tại của bạn.',
-    choices: [{
-      label: 'Vào phòng thi', minutes: 240,
-      run: (S) => { const lv = jpLevel(S.jp); S.cert = lv.startsWith('N') ? lv : null; },
-      fx: (S) => (S.cert ? { mood: 12, rep: 5 } : { mood: -6 }),
-      res: (S) => (S.cert ? `Bạn đỗ ${S.cert}! Chứng chỉ giúp bạn được đánh giá cao hơn khi gia hạn hay chuyển visa.` : 'Lần này chưa đỗ. Học thêm ở lớp tối và nói chuyện với bà Sato nhé.'),
-    }],
-  },
-  {
     id: 'winter', day: 43, when: 'morning', who: 'Sáng nay', title: '❄️ Tuyết đầu mùa', jp: '初雪',
     text: 'Mở cửa ra, cả thị trấn phủ một lớp tuyết mỏng. Lạnh, dễ cảm, tiền điện sưởi cũng tăng.',
     choices: [{ label: 'Đẹp quá!', fx: { mood: 5 } }],
   },
   {
-    id: 'bonenkai', day: 54, when: 'after', who: 'Chị Yamada', title: '🍻 Tiệc tất niên', jp: '忘年会',
+    id: 'bonenkai', day: 40, when: 'after', who: 'Chị Yamada', title: '🍻 Tiệc tất niên', jp: '忘年会',
     text: 'Tối nay công ty tổ chức tiệc tất niên — "quên đi năm cũ". Mỗi người góp 4.000¥.',
     choices: [
       { label: 'Đi!', sub: '−4.000¥', need: 4000, minutes: 180, fx: { money: -4000, mood: 15, rep: 5, full: 40, jp: 1 },
@@ -88,9 +78,9 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'omisoka', day: 55, when: 'morning', who: 'Cuối năm', title: '🎍 Đêm giao thừa', jp: '大晦日',
+    id: 'omisoka', day: 41, when: 'morning', who: 'Cuối năm', title: '🎍 Đêm giao thừa', jp: '大晦日',
     text: 'Ngày cuối năm. Ở đền, người ta xếp hàng cầu may đầu năm (初詣). Bạn có thể ghé đền hôm nay hoặc ngày mai.',
-    choices: [{ label: 'Ghi nhớ', flag: 'newyear' }],
+    choices: [{ label: 'Ghi nhớ', run: (S) => { S.flags.newyear = year(S); } }],
   },
 
   // ===================== ngẫu nhiên buổi sáng =====================
@@ -311,10 +301,11 @@ export async function applyChoice(S, c, title) {
   if (res || out.length) await modal({ title: res ? '' : 'Kết quả', text: res || '', html: chips(out) });
 }
 
+// Sự kiện cố định lặp lại hằng năm theo ngày trong năm (doy)
 export function fixedEvent(S, when) {
-  return EVENTS.find((e) => e.day === S.day && e.when === when && !S.flags['fx_' + e.id]);
+  return EVENTS.find((e) => e.day === doy(S) && e.when === when && !S.flags[`fx_${e.id}_${year(S)}`]);
 }
-export function markFixed(S, ev) { S.flags['fx_' + ev.id] = true; }
+export function markFixed(S, ev) { S.flags[`fx_${ev.id}_${year(S)}`] = true; }
 
 export function randomEvent(S, when) {
   const pool = EVENTS.filter((e) => !e.day && e.when === when && !(e.once && S.flags['ev_' + e.id]) && (!e.cond || e.cond(S)));

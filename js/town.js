@@ -1,5 +1,6 @@
 // Thị trấn Hikari-chō: bản đồ ô vuông, vẽ, di chuyển, người đi đường, ngày/đêm, thời tiết.
-import { G, seasonIdx, tickNeeds, TIME_RATE, isWorkday, dow, MIDNIGHT } from './state.js';
+import { G, seasonIdx, tickNeeds, TIME_RATE, isWorkday, dow, MIDNIGHT, isNewYear } from './state.js';
+import { canRegister } from './exam.js';
 import { input } from './input.js';
 import { TS, FONT, hash2, rect, disc, shade, pick, text, pill, drawPerson, drawCat, drawCar } from './pixel.js';
 import { JOBS, LOOK } from './data.js';
@@ -335,7 +336,9 @@ export function objective(S) {
   if (S.full < 25) return { text: '🍙 Đói bụng — mua đồ ăn ở konbini / siêu thị hoặc về nấu', target: 'konbini' };
   if (S.energy < 20) return { text: '😪 Kiệt sức — về ký túc xá nghỉ ngơi', target: 'dorm' };
   if (S.today.matsuri && t >= 17 * 60) return { text: '🏮 Lễ hội mùa hè đang diễn ra ở công viên!', target: 'park' };
-  if ((S.flags.newyear) && !S.today.hatsu) return { text: '⛩️ Năm mới — ghé đền đi lễ đầu năm', target: 'shrine' };
+  if (isNewYear(S)) return { text: '⛩️ Năm mới — ghé đền đi lễ đầu năm', target: 'shrine' };
+  if (S.exam && !S.exam.taken) return { text: `📝 Đã đăng ký thi JLPT ${S.exam.lv} — ôn bài ở lớp hoặc tự học trong ký túc xá`, target: (dow(S) < 5 && t >= 17.5 * 60 && t < 21 * 60) || (dow(S) >= 5 && t >= 10 * 60 && t < 17 * 60) ? 'class' : 'dorm' };
+  if (canRegister(S)) return { text: '📝 Đang mở đăng ký thi JLPT — đăng ký qua mạng ở ký túc xá', target: 'dorm' };
   if (dow(S) === 5 && !S.worked && t <= 9 * 60) return { text: '⏱️ Thứ Bảy: có thể làm thêm buổi sáng (đến trước 09:00)', target: 'work' };
   if (S.money >= 25000 && S.debt > 0 && t >= 10 * 60 && t < 19 * 60) return { text: '💸 Có tiền rồi — ghé tiệm chuyển tiền gửi về trả nợ', target: 'remit' };
   if (!S.today.class && ((dow(S) < 5 && t >= 17.5 * 60 && t < 21 * 60) || (dow(S) >= 5 && t >= 10 * 60 && t < 17 * 60)))

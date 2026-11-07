@@ -1,5 +1,8 @@
 // Khởi động game: màn hình chính, tạo nhân vật, vòng lặp khung hình.
-import { G, newState, load, save, clearSave, MIDNIGHT, TOTAL_DAYS } from './state.js';
+import { G, newState, load, save, clearSave, MIDNIGHT, YEAR_DAYS, year, bestCert } from './state.js';
+import { levelStats, progress } from './learning.js';
+import { ending } from './days.js';
+import { nextSessionText } from './exam.js';
 import { JOBS, LOOK } from './data.js';
 import { input, initInput } from './input.js';
 import { modal, showHud, updateHud, toast, modalOpen, esc } from './ui.js';
@@ -127,7 +130,7 @@ async function intro() {
   });
   await modal({
     who: 'Nghiệp đoàn', title: '🏘️ Thị trấn Hikari-chō', jp: 'ひかり町',
-    text: `Bạn được đưa về ký túc xá ở thị trấn nhỏ Hikari. Từ ngày mai bạn làm ở <b>${job.place}</b> (${job.name}).<br><br>Mục tiêu trong <b>1 năm</b>: trả hết nợ, giữ sức khỏe và nói được tiếng Nhật.<br><span class="dim">(Năm trong game được rút gọn: mỗi mùa 14 ngày, tổng ${TOTAL_DAYS} ngày.)</span>`,
+    text: `Bạn được đưa về ký túc xá ở thị trấn nhỏ Hikari. Từ ngày mai bạn làm ở <b>${job.place}</b> (${job.name}).<br><br>Không có thời hạn: bạn ở Nhật bao lâu là tùy bạn. Hãy trả hết nợ, giữ sức khỏe và học tiếng Nhật — trả lời đúng càng nhiều thì tiến bộ càng nhanh.<br><span class="dim">(Một năm trong game được rút gọn còn ${YEAR_DAYS} ngày: mỗi mùa 14 ngày.)</span>`,
   });
   await modal({ who: 'Cách chơi', title: '🎮 Hướng dẫn nhanh', html: HELP_HTML, ok: 'Bắt đầu! 💪' });
 }
@@ -139,7 +142,8 @@ const HELP_HTML = `<ul class="help">
   <li>🏭 <b>Thứ Hai – Thứ Sáu</b> phải có mặt ở chỗ làm trước <b>08:00</b>. Nghỉ không phép bị trừ uy tín nặng. Uy tín về 0 là bị cho về nước!</li>
   <li>🧾 Lương trả vào <b>Chủ Nhật</b> (trừ tiền nhà, điện nước). Ra <b>tiệm chuyển tiền</b> gửi về để trả nợ.</li>
   <li>🍙 Nhớ ăn uống, ngủ trước <b>0:00</b>. Sức khỏe về 0 sẽ phải nhập viện.</li>
-  <li>🗣️ Học tiếng Nhật ở lớp buổi tối, hoặc nói chuyện với bà Sato mỗi ngày.</li>
+  <li>🗣️ <b>Tiếng Nhật:</b> học ở lớp tối, tự học ở ký túc xá, nói chuyện với bà Sato. Trả lời đúng liên tục được nhân điểm 🔥. Muốn có <b>chứng chỉ JLPT</b> phải đăng ký thi (tháng 7 và tháng 12).</li>
+  <li>🧩 Ca làm là các câu hỏi tình huống. Thích chơi mini-game thì bật trong menu ⏸.</li>
   <li>➡️ Mũi tên vàng cạnh nhân vật chỉ chỗ nên đến tiếp theo.</li>
 </ul>`;
 
@@ -166,10 +170,14 @@ function bookHtml(S) {
   const items = [
     S.inv.ingredients ? `🥬 Nguyên liệu nấu ăn ×${S.inv.ingredients}` : '',
     S.flags.bike ? '🚲 Xe đạp' : '', S.flags.kit ? '🎒 Túi khẩn cấp' : '', S.flags.umbrella ? '☂️ Ô' : '',
-    S.cert ? `📜 Chứng chỉ JLPT ${S.cert}` : '',
+    ...(S.certs || []).map((c) => `📜 ${c.type} ${c.lv}`),
   ].filter(Boolean);
   const log = S.log.slice(0, 10).map((l) => `<li><span class="dim">Ngày ${l.d}:</span> ${esc(l.t)}</li>`).join('');
-  return `<div class="payslip">${row('💴 Tiền mặt', yen(S.money))}${row('🧾 Lương chờ lĩnh', yen(S.wage))}${row('🏦 Nợ ở quê', vnd(Math.max(0, S.debt)))}${row('💸 Đã gửi về', vnd(S.stats.sentVnd))}${row('🗣️ Tiếng Nhật', `${jpLevel(S.jp)} (${Math.round(S.jp)}/100)`)}${st}${row('📚 Câu đã học', S.learned.length)}${row('🏭 Ca đã làm / đi muộn / nghỉ', `${S.stats.shifts} / ${S.stats.lates} / ${S.stats.absences}`)}</div>
+  return `<div class="payslip">${row('💴 Tiền mặt', yen(S.money))}${row('🧾 Lương chờ lĩnh', yen(S.wage))}${row('🏦 Nợ ở quê', vnd(Math.max(0, S.debt)))}${row('💸 Đã gửi về', vnd(S.stats.sentVnd))}${row('📅 Thời gian ở Nhật', `Năm ${year(S)} · ${S.day} ngày`)}${st}${row('👵 Câu bà Sato đã dạy', S.learned.length)}${row('🏭 Ca đã làm / đi muộn / nghỉ', `${S.stats.shifts} / ${S.stats.lates} / ${S.stats.absences}`)}</div>
+    <h3>🗣️ Tiếng Nhật — trình độ ${jpLevel(S)}${bestCert(S) ? ` · chứng chỉ ${bestCert(S)}` : ''}</h3>
+    <div class="payslip">${levelStats(S.lang).map((l) => `<div class="prow"><span>${l.reached ? '✅' : '⬜'} ${l.lv}</span><span>${Math.min(100, Math.round((l.xp / l.need) * 100))}% · chính xác ${Math.round(l.acc * 100)}%</span></div>`).join('')}
+    <div class="prow"><span>🔥 Chuỗi đúng dài nhất</span><span>${S.lang.best}</span></div></div>
+    <p class="dim">📝 ${S.exam ? `Đã đăng ký thi JLPT ${S.exam.lv}${S.exam.taken ? ' — đang chờ kết quả' : ''}` : nextSessionText(S)}</p>
     <p class="dim">Đồ dùng: ${items.length ? items.join(' · ') : 'chưa có gì'}</p>
     ${log ? `<h3>Nhật ký gần đây</h3><ul class="log">${log}</ul>` : ''}`;
 }
@@ -177,16 +185,24 @@ $('btn-book').onclick = () => { if (G.S && !G.busy) runFlow(() => modal({ who: `
 $('btn-menu').onclick = () => {
   if (!G.S || G.busy) return;
   runFlow(async () => {
+    const S0 = G.S;
     const v = await modal({
       title: '⏸ Tạm dừng',
       choices: [
         { label: '▶ Chơi tiếp', value: 'go', primary: true },
         { label: '🎮 Hướng dẫn', value: 'help' },
+        { label: S0.settings.shiftMode === 'mini' ? '🎮 Ca làm: Mini-game' : '🧩 Ca làm: Trắc nghiệm', sub: 'Bấm để đổi', value: 'mode' },
         { label: isMuted() ? '🔇 Âm thanh: tắt' : '🔊 Âm thanh: bật', value: 'snd' },
+        { label: '✈️ Về nước (kết thúc hành trình)', value: 'home' },
         { label: '💾 Lưu & về màn hình chính', value: 'quit' },
       ],
     });
     if (v === 'help') await modal({ title: '🎮 Hướng dẫn', html: HELP_HTML });
+    if (v === 'mode') { S0.settings.shiftMode = S0.settings.shiftMode === 'mini' ? 'quiz' : 'mini'; toast(S0.settings.shiftMode === 'mini' ? '🎮 Ca làm: Mini-game' : '🧩 Ca làm: Trắc nghiệm'); }
+    if (v === 'home') {
+      const ok = await modal({ title: 'Về nước thật sao?', text: 'Hành trình ở Nhật sẽ kết thúc và bạn xem tổng kết. Bản lưu sẽ bị xóa.', choices: [{ label: '✈️ Về nước', value: true }, { label: 'Ở lại', value: false, cancel: true }] });
+      if (ok) await ending(S0, 'home');
+    }
     if (v === 'snd') { setMuted(!isMuted()); toast(isMuted() ? '🔇 Đã tắt âm thanh' : '🔊 Đã bật âm thanh'); }
     if (v === 'quit') { save(); G.S = null; showTitle(); }
   });
