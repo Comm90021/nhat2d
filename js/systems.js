@@ -1,7 +1,7 @@
 // Nối các hệ thống vào bus sự kiện. Thứ tự ưu tiên: số nhỏ chạy trước.
 // Mỗi handler nhận (S, ctx). ctx.msgs = thông báo gom vào màn tóm tắt buổi sáng.
 import { bus } from './bus.js';
-import { clamp, isWorkday, addLog, seasonIdx, SEASONS, doy, year } from './state.js';
+import { clamp, isWorkday, addLog, seasonIdx, SEASONS, doy, year, ensureAttr, dow } from './state.js';
 import { payroll } from './payroll.js';
 import { socialDaily, atLeast } from './social.js';
 import { careerMorning } from './career.js';
@@ -16,6 +16,8 @@ import { ensureHomes } from './homes.js';
 import { bankMonthEnd } from './bank.js';
 import { jobsMonthEnd, employed, ensureEmp } from './jobs.js';
 import { modal } from './ui.js';
+import { isBirthday } from './dating.js';
+import { PEOPLE } from './ai/world.js';
 
 // ---------- cuối ngày (trước khi sang ngày mới) ----------
 bus.on('day:end', 10, (S, ctx) => {
@@ -41,6 +43,16 @@ bus.on('day:end', 30, (S, ctx) => {
 
 // ---------- đầu ngày ----------
 bus.on('day:start', 5, (S, ctx) => { ensureHomes(S); aiMorningMsgs(S, ctx); }, 'NPC: tâm trạng, tin đồn, thu nợ');
+// Chỉ số phụ theo ngày: bỏ tập thì thể lực giảm dần, ngoại hình cần giữ gìn; căng thẳng cao gây hại
+bus.on('day:start', 6, (S, ctx) => {
+  const A = ensureAttr(S);
+  A.fit = Math.max(10, A.fit - 0.35); A.look = Math.max(15, A.look - 0.3);
+  // căng thẳng: nợ nhiều, tăng ca, thất nghiệp làm tăng; ngủ đủ và nghỉ cuối tuần làm giảm
+  A.stress = Math.max(0, Math.min(100, A.stress + (S.fin && S.money < 10000 ? 2 : 0) + (employed(S) ? 0.5 : 3) - (dow(S) >= 5 ? 3 : 1.5)));
+  if (A.stress >= 75) { S.health = Math.max(0, S.health - 2); S.mood = Math.max(0, S.mood - 3); ctx.msgs.push('😣 Căng thẳng kéo dài — người mệt mỏi, dễ ốm. Thử tắm sentō, tập yoga, đi chơi với bạn.'); }
+  // sinh nhật người quen
+  for (const id of Object.keys(S.npc || {})) if (S.npc[id].met && S.npc[id].aff >= 40 && PEOPLE[id] && PEOPLE[id].traits && isBirthday(S, id)) ctx.msgs.push(`🎂 Hôm nay là sinh nhật ${PEOPLE[id].name}! Tặng quà hôm nay được thêm thiện cảm.`);
+}, 'Chỉ số phụ, sinh nhật');
 bus.on('day:start', 10, (S, ctx) => {
   if (seasonIdx(S) !== ctx.prevSeason) {
     invalidateMap();

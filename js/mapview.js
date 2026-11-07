@@ -11,11 +11,12 @@ import { TS } from './pixel.js';
 import { BUILDINGS, parseUnit } from './content/units.js';
 import { myPlace } from './jobs.js';
 
-const DISTRICTS = { town: 'Thị trấn Hikari', jutaku: 'Khu dân cư Hikari-dai', minato: 'Khu công nghiệp Minato' };
+const DISTRICTS = { town: 'Thị trấn Hikari', shotengai: 'Phố Kawabata (vui chơi, mua sắm)', jutaku: 'Khu dân cư Hikari-dai', minato: 'Khu công nghiệp Minato' };
 const ICON = {
   dorm: '🛏️', konbini: '🏪', work: '🏭', clinic: '🏥', station: '🚉', station2: '🚉', super: '🛒', class: '📚', remit: '💸', shrine: '⛩️',
   ramen: '🍜', center: '🤝', care: '🧓', bento: '🍱', it: '💻', electric: '⚡', parts: '🔩', teishoku: '🍚', logistics: '📦', site: '🏗️',
   apt: '🏢', hikari: '🏢', sakura: '🏢', residence: '🏢', fudosan: '🏠', park: '🌳', river: '🌊', jpark: '🌳', mpark: '🌳',
+  cafe: '☕', karaoke: '🎤', cinema: '🎬', gamecenter: '🕹️', mall: '🛍️', gym: '🏋️', library: '📖', sento: '♨️', izakaya: '🏮',
 };
 const COLOR = { work: '#e67e22', shop: '#3498db', food: '#e74c3c', home: '#9b59b6', leisure: '#27ae60', service: '#16a085', health: '#e84393', study: '#f1c40f', temple: '#c0392b' };
 
@@ -51,7 +52,7 @@ function render(S, M) {
     c.fillStyle = '#fff'; c.fillText(label, x, y);
   }
   for (const s of M.spots) { const x = (s.tx * TS + 8) * k, y = (s.ty * TS + 8) * k; c.font = '11px sans-serif'; c.fillStyle = 'rgba(20,60,30,.85)'; const t = `${ICON[s.id] || '📍'} ${s.name}`; const tw = c.measureText(t).width + 8; c.fillRect(x - tw / 2, y - 8, tw, 16); c.fillStyle = '#fff'; c.fillText(t, x, y); }
-  for (const e of M.edges || []) { const x = e.side === 'w' ? 60 : W - 60, y = (e.y0 + 2) * TS * k; c.font = 'bold 11px sans-serif'; c.fillStyle = 'rgba(40,60,110,.9)'; const t = e.side === 'w' ? `◀ ${e.name}` : `${e.name} ▶`; const tw = c.measureText(t).width + 8; c.fillRect(x - tw / 2, y - 8, tw, 16); c.fillStyle = '#fff'; c.fillText(t, x, y); }
+  for (const e of M.edges || []) { const x = e.side === 'w' ? 70 : e.side === 'e' ? W - 70 : ((e.x0 + e.x1) / 2) * TS * k, y = e.side === 'n' ? 14 : e.side === 's' ? H - 14 : (e.y0 + 2) * TS * k; c.font = 'bold 11px sans-serif'; c.fillStyle = 'rgba(40,60,110,.9)'; const t = `${{ w: '◀', e: '▶', n: '▲', s: '▼' }[e.side]} ${e.name}`; const tw = c.measureText(t).width + 8; c.fillRect(x - tw / 2, y - 8, tw, 16); c.fillStyle = '#fff'; c.fillText(t, x, y); }
   // bạn bè đang ở đâu
   const at = {};
   for (const id of metIds(S)) {
@@ -124,7 +125,7 @@ async function travelMenu(S, mid, dest) {
   const v = await modal({
     who: 'Đi tới', title: `📍 ${esc(dest.name)}`, text: same ? 'Cùng khu với bạn.' : `Ở ${DISTRICTS[mid]} — bạn đang ở ${DISTRICTS[from]}.`,
     choices: [
-      { label: same ? '🚶 Tự đi bộ tới' : '🚶 Đi bộ tới chỗ chuyển khu', sub: same ? 'Miễn phí · nhân vật tự đi, bấm phím di chuyển để dừng' : (from === 'jutaku' || mid === 'jutaku') && (from !== 'minato' && mid !== 'minato') ? 'Đi hết con đường lớn là sang khu bên cạnh' : 'Đi tới ga tàu (¥200 / chuyến)', value: 'walk' },
+      { label: same ? '🚶 Tự đi bộ tới' : '🚶 Đi bộ tới chỗ chuyển khu', sub: same ? 'Miễn phí · nhân vật tự đi, bấm phím di chuyển để dừng' : from !== 'minato' && mid !== 'minato' ? 'Đi hết con đường (hoặc qua cầu) là sang khu bên cạnh' : 'Đi tới ga tàu (¥200 / chuyến)', value: 'walk' },
       { label: `🚌 Xe buýt${same ? '' : ' + tàu'} · ${yen(bus.cost)} · ${bus.min} phút`, value: 'bus', disabled: !busOk || S.money < bus.cost, reason: !busOk ? 'Xe buýt chạy 06:00–22:00' : 'Không đủ tiền' },
       { label: `🚕 Taxi · ${yen(taxi.cost)} · ${taxi.min} phút`, value: 'taxi', disabled: S.money < taxi.cost, reason: 'Không đủ tiền' },
       { label: '← Quay lại', value: null, cancel: true },

@@ -8,6 +8,7 @@ import { fam, famGain, famText } from './family.js';
 import { VISAS } from './career.js';
 import { sfx } from './audio.js';
 import { pay } from './finance.js';
+import { romanceGate, confessReason, confess, touchActions, isPartner, isAffair } from './dating.js';
 
 const PREG_DAYS = 63; // 9 tháng (7 ngày chơi = 1 tháng)
 const NAMES_VN = ['An', 'Bình', 'Minh', 'Khang', 'Linh', 'Ngọc', 'Hân', 'Phúc'];
@@ -17,73 +18,48 @@ export const partner = (S) => (S.love ? PEOPLE[S.love.id] : null);
 export const isMarried = (S) => !!(S.love && S.love.stage === 'married');
 const STAGE_TXT = { dating: 'Đang hẹn hò', engaged: 'Đã đính hôn', married: 'Vợ/chồng' };
 
-function canRomance(S, id) {
-  const d = PEOPLE[id];
-  return d.romance && d.gender === (S.pref || (S.gender === 'm' ? 'f' : 'm'));
-}
-
-// Hành động tình cảm gắn vào menu của từng người
+// Hành động tình cảm gắn vào menu của từng người (điều kiện do dating.js tính theo quy luật)
 export function romanceActions(S, id) {
   const p = P(S, id), d = PEOPLE[id];
   const a = [];
-  if (!p.met || !canRomance(S, id)) return a;
-  if (!S.love && stageIdx(p.aff) >= 3) a.push({ label: `💗 Tỏ tình với ${d.name}`, sub: 'Thân thiết càng cao, càng dễ thành công', run: (s) => confess(s, id) });
-  if (S.love && S.love.id === id) {
-    a.push({ label: `💑 Hẹn hò với ${d.name}`, sub: STAGE_TXT[S.love.stage], minutes: 120, cond: (s) => (s.love.lastDate === s.day ? 'Hôm nay đã hẹn hò rồi' : null), run: (s) => date(s) });
-    if (S.love.stage === 'dating' && S.day - S.love.since >= 42 && p.aff >= 85) a.push({ label: '💍 Cầu hôn', sub: 'Cần ¥150,000 (nhẫn, lễ ra mắt)', cond: (s) => (s.money < 150000 ? 'Chưa đủ tiền' : null), run: (s) => propose(s) });
-    if (S.love.stage === 'engaged') a.push({ label: '📜 Đăng ký kết hôn & làm đám cưới nhỏ', sub: '婚姻届 · tiệc cưới ¥120,000', cond: (s) => (s.money < 120000 ? 'Chưa đủ tiền' : null), run: (s) => marry(s) });
-    if (isMarried(S) && !S.love.pregnant && !S.love.wantKids) a.push({ label: '👶 Bàn chuyện sinh con', run: (s) => talkKids(s) });
+  if (!p.met) return a;
+  const g = romanceGate(S, id);
+  if (g.ok && !isPartner(S, id) && !isAffair(S, id)) {
+    const r = confessReason(S, id);
+    a.push({ label: `💗 Tỏ tình với ${d.name}`, sub: r || (g.affair ? '⚠️ Người này đã có gia đình' : 'Có vẻ có cơ hội…'), cond: () => r, run: (s) => confess(s, id) });
+  }
+  if (isPartner(S, id)) {
+    const L = S.love;
+    a.push(...touchActions(S, id));
+    if (L.stage === 'dating') a.push({ label: '💍 Cầu hôn', sub: 'Nhẫn + ra mắt gia đình ¥150,000 · người ấy có thể chưa sẵn sàng', cond: (s) => (s.money < 150000 ? 'Chưa đủ tiền' : (P(s, id).att || 0) < 60 ? `Chưa đủ rung động 💗 ${Math.round(P(s, id).att || 0)}/60` : null), run: (s) => propose(s) });
+    if (L.stage === 'engaged') a.push({ label: d.gender === S.gender ? '📜 Đăng ký đối tác & làm tiệc nhỏ' : '📜 Đăng ký kết hôn & làm đám cưới nhỏ', sub: `${d.gender === S.gender ? 'パートナーシップ宣誓' : '婚姻届'} · tiệc ¥120,000`, cond: (s) => (s.money < 120000 ? 'Chưa đủ tiền' : null), run: (s) => marry(s) });
+    if (isMarried(S) && !L.pregnant && !L.wantKids && d.gender !== S.gender) a.push({ label: '👶 Bàn chuyện sinh con', run: (s) => talkKids(s) });
+    a.push({ label: '💔 Chia tay', sub: 'Kết thúc mối quan hệ', run: (s) => breakUp(s) });
+  }
+  if (isAffair(S, id)) {
+    a.push(...touchActions(S, id));
+    a.push({ label: '💔 Chấm dứt mối quan hệ bí mật', run: async (s) => { delete s.affairs[id]; P(s, id).att = clamp((P(s, id).att || 0) - 20); addLog(s, `Chấm dứt quan hệ bí mật với ${d.name}`); await modal({ who: d.name, text: 'Hai người đồng ý dừng lại trước khi mọi chuyện đi quá xa.' }); } });
   }
   return a;
 }
 hooks.extra = romanceActions;
 
-async function confess(S, id) {
-  const d = PEOPLE[id], p = P(S, id);
-  const chance = Math.min(0.95, 0.35 + (p.aff - 70) * 0.02 + (S.mood - 50) * 0.004 + (d.jp ? levelIndex(S.lang) * 0.04 : 0.05));
-  await modal({ who: d.name, title: '💗 Tỏ tình', text: `Bạn hẹn ${esc(d.name)} ra bờ sông lúc hoàng hôn, lấy hết can đảm nói ra lòng mình${d.jp ? ': 「ずっと好きでした。付き合ってください」' : '.'}`, ok: 'Hồi hộp…' });
-  advance(S, 60);
-  if (Math.random() < chance) {
-    S.love = { id, stage: 'dating', since: S.day, lastDate: S.day };
-    gain(S, id, 5);
-    addLog(S, `Bắt đầu hẹn hò với ${d.name}`);
-    sfx('end');
-    const out = applyFx(S, { mood: 25 });
-    await modal({ who: d.name, title: '💞 Đồng ý!', text: `${esc(d.name)} đỏ mặt gật đầu${d.jp ? ': 「…はい。よろしくお願いします」' : ': "Mình cũng thích bạn từ lâu rồi."'}`, html: chips(out) });
-  } else {
-    p.aff = clamp(p.aff - 12);
-    sfx('bad');
-    const out = applyFx(S, { mood: -15 });
-    await modal({ who: d.name, title: '💔 Chưa phải lúc', text: `${esc(d.name)} bối rối: "Mình… coi bạn là bạn tốt thôi. Cho mình thêm thời gian nhé." Có lẽ cần thân thiết hơn nữa.`, html: chips(out) });
-  }
-}
-
-const DATES = [
-  { label: '🌸 Dạo công viên, mua đồ ăn vặt', cost: 1500, aff: 4, mood: 8 },
-  { label: '🍣 Ăn tối ở nhà hàng', cost: 5000, aff: 7, mood: 10 },
-  { label: '🚃 Đi tàu lên thành phố chơi cả ngày', cost: 9000, aff: 10, mood: 14, weekend: true },
-  { label: '🏠 Nấu ăn cùng nhau ở nhà', cost: 800, aff: 5, mood: 7 },
-];
-async function date(S) {
+async function breakUp(S) {
   const d = partner(S);
-  const v = await modal({
-    who: d.name, title: '💑 Đi đâu bây giờ?',
-    choices: [...DATES.map((x, i) => ({ label: `${x.label} · ${yen(x.cost)}`, value: i, disabled: S.money < x.cost || (x.weekend && dow(S) < 5) || S.time + 120 > MIDNIGHT, reason: S.money < x.cost ? 'Không đủ tiền' : x.weekend && dow(S) < 5 ? 'Chỉ cuối tuần' : 'Khuya rồi' })), { label: 'Thôi', value: -1, cancel: true }],
-  });
-  if (v < 0) return;
-  const x = DATES[v];
-  pay(S, x.cost, 'date', 'Hẹn hò');
-  advance(S, x.weekend ? 360 : 120);
-  S.love.lastDate = S.day;
-  gain(S, S.love.id, x.aff);
-  const out = applyFx(S, { mood: x.mood, full: 20 });
-  out.unshift(['money', -x.cost]);
-  out.push(['aff', x.aff]);
-  await modal({ who: d.name, title: '💕 Một buổi hẹn vui', text: 'Thời gian bên nhau trôi qua thật nhanh.', html: chips(out) + affBar(P(S, S.love.id).aff) });
+  const v = await modal({ who: d.name, title: '💔 Chia tay?', text: 'Bạn chắc chứ? Chuyện này khó quay lại.', choices: [{ label: 'Chia tay', value: true }, { label: 'Thôi', value: false, cancel: true }] });
+  if (!v) return;
+  const id = S.love.id;
+  P(S, id).att = clamp((P(S, id).att || 0) - 30); P(S, id).aff = clamp(P(S, id).aff - 15);
+  addLog(S, `Chia tay ${d.name}`);
+  S.love = null;
+  const out = applyFx(S, { mood: -15, stress: 8 });
+  await modal({ who: d.name, title: '💔 Đã chia tay', html: chips(out) });
 }
-
 async function propose(S) {
-  const d = partner(S);
+  const d = partner(S), p = P(S, S.love.id);
+  // người ấy có đồng ý không: rung động, thân thiết, đã yêu bao lâu (không có mốc cứng)
+  const chance = 1 / (1 + Math.exp(-(0.1 * ((p.att || 0) - 70) + 0.05 * (p.aff - 55) + Math.min(1.2, (S.day - S.love.since) / 25))));
+  if (Math.random() > chance) { p.att = clamp((p.att || 0) - 3); await modal({ who: d.name, title: '💍 Chưa phải lúc', text: `${esc(d.name)} xúc động nhưng lắc đầu: "Mình yêu bạn, nhưng mình muốn chắc chắn hơn. Cho mình thêm thời gian nhé."` }); return; }
   pay(S, 150000, 'wedding', 'Nhẫn cầu hôn, lễ ra mắt');
   advance(S, 120);
   addLog(S, `Cầu hôn ${d.name}`);
@@ -122,10 +98,13 @@ async function marry(S) {
   const out = applyFx(S, { mood: 30 });
   let note = '';
   const myVisa = VISAS[S.career.visa];
-  if (d.jp) note = 'Vì kết hôn với người Nhật, bạn có thể xin đổi sang <b>visa vợ/chồng người Nhật</b> (làm thủ tục ở ký túc xá → 📄). Visa này không giới hạn ngành nghề.';
+  const same = d.gender === S.gender;
+  S.love.partnership = same;
+  if (same) note = 'Nhật Bản chưa công nhận hôn nhân đồng giới. Hai người làm <b>tuyên thệ đối tác (パートナーシップ宣誓)</b> ở tòa thị chính — được công nhận ở nhiều thủ tục địa phương (thuê nhà chung, thăm bệnh…) nhưng <b>không có visa vợ/chồng</b>.';
+  else if (d.jp) note = 'Vì kết hôn với người Nhật, bạn có thể xin đổi sang <b>visa vợ/chồng người Nhật</b> (làm thủ tục ở ký túc xá → 📄). Visa này không giới hạn ngành nghề.';
   else if (!myVisa.family) note = `Thực tế: visa <b>${esc(myVisa.short)}</b> của bạn không được bảo lãnh gia đình. Hai người vẫn có visa riêng, nhưng nếu có con, bé sẽ không được ở Nhật trừ khi một trong hai có visa cho phép bảo lãnh (như visa kỹ sư, KNĐĐ số 2).`;
   else note = 'Visa của bạn cho phép bảo lãnh gia đình — sau này có con, bé có thể sống cùng bạn ở Nhật.';
-  await modal({ who: 'Cột mốc', title: `💒 Kết hôn với ${d.name}!`, text: `Hai người nộp tờ 婚姻届 ở tòa thị chính rồi làm một bữa tiệc nhỏ với bạn bè ở hội người Việt và đồng nghiệp. ${note}`, html: chips([['money', -120000], ...out]) });
+  await modal({ who: 'Cột mốc', title: `💒 Kết hôn với ${d.name}!`, text: `Hai người nộp tờ ${same ? 'tuyên thệ đối tác' : '婚姻届'} ở tòa thị chính rồi làm một bữa tiệc nhỏ với bạn bè ở hội người Việt và đồng nghiệp. ${note}`, html: chips([['money', -120000], ...out]) });
 }
 
 async function talkKids(S) {
@@ -151,7 +130,7 @@ export async function romanceDaily(S) {
   if (L.stage === 'married' && S.day - L.lastDate > 21 && S.day % 4 === 0) p.aff = clamp(p.aff - 2);
   // mang thai
   if (L.stage === 'married' && L.wantKids && !L.pregnant && Math.random() < 0.07) {
-    L.pregnant = { start: S.day };
+    L.pregnant = { start: S.day, told: true };
     const me = S.gender === 'f';
     addLog(S, 'Có tin vui: mang thai');
     sfx('end');
@@ -167,6 +146,11 @@ export async function romanceDaily(S) {
       else { const out = applyFx(S, { mood: -15 }); await modal({ text: 'Bạn mất ngủ nhiều đêm. Hãy nhớ: đường dây tư vấn tiếng Việt của OTIT luôn sẵn sàng giúp bạn.', html: chips(out) }); }
     }
     return;
+  }
+  if (L.pregnant && !L.pregnant.told) {
+    L.pregnant.told = true;
+    addLog(S, 'Có thai ngoài dự định');
+    await modal({ who: d.name, title: '🤰 Tin bất ngờ', text: `Có thai ngoài dự định. Hai người ngồi nói chuyện nghiêm túc: tiền bạc, visa, công việc, gia đình hai bên… ${L.stage === 'dating' ? 'Nhiều cặp đôi quyết định cưới sớm hơn dự tính.' : ''}<br><span class="dim">Ở Nhật: khám thai được hỗ trợ (母子手帳 ở tòa thị chính); lao động nước ngoài mang thai được pháp luật bảo vệ.</span>` });
   }
   if (L.pregnant && S.day - L.pregnant.start >= PREG_DAYS) await birth(S);
 }
@@ -194,7 +178,7 @@ async function birth(S) {
 }
 
 // Đổi sang visa vợ/chồng người Nhật
-export function canSpouseVisa(S) { return isMarried(S) && partner(S).jp && !['spouse', 'pr'].includes(S.career.visa); }
+export function canSpouseVisa(S) { return isMarried(S) && !S.love.partnership && partner(S).jp && !['spouse', 'pr'].includes(S.career.visa); }
 
 export function loveHtml(S) {
   if (!S.love) return '<div class="dim">Chưa có người yêu.</div>';

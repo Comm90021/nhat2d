@@ -129,6 +129,7 @@ export async function apptCheck(S, inPlace) {
   }
   if (inPlace === a.place && S.time >= a.at - 30) {
     a.done = true;
+    if (a.date) { const { runDate } = await import('../dating.js'); await runDate(S, a.id, a.date); return true; }
     const cost = a.place === 'ramen' ? 1200 : 500;
     const share = d.nat === 'jp' && rnd(S.day, a.id, 'treat') < 0.6;
     if (!share) pay(S, cost, 'social', `Đi chơi với ${d.name}`);

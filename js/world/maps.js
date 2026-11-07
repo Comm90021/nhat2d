@@ -98,7 +98,10 @@ export function buildTown() {
   M.carLanes = [{ h: true, at: 13, d: -1, len: 54 }, { h: true, at: 14, d: 1, len: 54 }, { h: true, at: 25, d: -1, len: 54 }, { h: true, at: 26, d: 1, len: 54 }, { h: false, at: 20, d: 1, len: 38 }, { h: false, at: 21, d: -1, len: 38 }];
   M.rails = { x: 54, dir: 1 };
   // đi bộ hết đường phía tây → sang khu dân cư Hikari-dai
-  M.edges = [{ side: 'w', to: 'jutaku', y0: 12, y1: 15, name: '🏘️ Khu dân cư Hikari-dai' }];
+  M.edges = [
+    { side: 'w', to: 'jutaku', y0: 12, y1: 15, name: '🏘️ Khu dân cư Hikari-dai' },
+    { side: 's', to: 'shotengai', x0: 19, x1: 22, name: '🛍️ Phố Kawabata' },
+  ];
   M.decor = (c, si) => {
     let X = 9 * TS, Y = 10 * TS;
     rect(c, '#3f6b55', X + 1, Y + 3, 14, 12); rect(c, '#2e5442', X + 1, Y + 3, 14, 2);
@@ -220,6 +223,51 @@ export function buildResidential() {
     // ghế đá công viên, biển khu đất bán
     rect(c, '#8a5a35', 8 * TS + 1, 20 * TS + 6, 14, 3); rect(c, '#6b4428', 8 * TS + 1, 20 * TS + 3, 14, 2);
     rect(c, '#f4f1e6', 34 * TS, 17 * TS + 4, 18, 10); rect(c, '#c0392b', 34 * TS + 2, 17 * TS + 6, 14, 2); rect(c, '#555', 34 * TS + 8, 17 * TS + 14, 2, 4);
+    for (const [lx, ly] of M.lamps) drawLamp(c, lx, ly);
+  };
+  return M;
+}
+
+// ======================= PHỐ KAWABATA (bên kia cầu) =======================
+// Phố mua sắm – giải trí: cà phê, karaoke, rạp phim, game center, trung tâm mua sắm, gym, thư viện, sentō, izakaya.
+export function buildShotengai() {
+  const M = makeMap('shotengai', 50, 34);
+  M.name = 'Phố Kawabata';
+  M.buildings = [
+    { id: 'cafe', name: 'Cà phê Komorebi', jp: 'カフェ', x: 1, y: 4, w: 7, h: 7, door: 4, wall: '#f3e6d3', roof: '#6b4a35', style: 'ramen' },
+    { id: 'karaoke', name: 'Karaoke Utaya', jp: 'カラオケ', x: 10, y: 4, w: 7, h: 7, door: 13, wall: '#f0dff0', roof: '#7a3f86', style: 'shop' },
+    { id: 'cinema', name: 'Rạp phim Hikari Cinema', jp: '映画館', x: 28, y: 3, w: 10, h: 8, door: 33, wall: '#e2e4ea', roof: '#2c2f45', style: 'hall' },
+    { id: 'gamecenter', name: 'Game center Arcadia', jp: 'ゲーセン', x: 40, y: 4, w: 8, h: 7, door: 44, wall: '#e9f0f7', roof: '#d0453c', style: 'konbini' },
+    { id: 'mall', name: 'Trung tâm mua sắm Aeon-ya', jp: 'ショッピングセンター', x: 1, y: 16, w: 10, h: 7, door: 6, wall: '#f4f1ea', roof: '#b5533c', style: 'shop' },
+    { id: 'gym', name: 'Phòng gym Power', jp: 'ジム', x: 13, y: 16, w: 7, h: 7, door: 16, wall: '#dfe3e7', roof: '#33465c', style: 'office' },
+    { id: 'library', name: 'Thư viện thành phố', jp: '図書館', x: 28, y: 16, w: 8, h: 7, door: 32, wall: '#ece3cf', roof: '#5d7a4c', style: 'hall' },
+    { id: 'sento', name: 'Nhà tắm Matsu-no-yu', jp: '銭湯', x: 37, y: 16, w: 6, h: 7, door: 40, wall: '#efe2c8', roof: '#2f5d8a', style: 'shrine' },
+    { id: 'izakaya', name: 'Izakaya Torikizoku-ya', jp: '居酒屋', x: 44, y: 16, w: 5, h: 7, door: 46, wall: '#efe2c8', roof: '#4a2a22', style: 'ramen' },
+  ];
+  M.spots = [];
+  M.aiSpots = { shotengai_street: [[6, 13], [12, 13], [30, 13], [36, 13], [44, 13]] };
+  // sông + cầu ở mép bắc (nối với cầu của thị trấn)
+  for (let y = 0; y <= 1; y++) for (let x = 0; x < M.w; x++) M.set(x, y, x >= 22 && x <= 25 ? T.BRIDGE : T.WATER);
+  // đường xe đi dọc, phố đi bộ (shōtengai) nằm ngang
+  for (let y = 2; y < M.h; y++) { M.set(22, y, T.WALK); M.set(25, y, T.WALK); M.set(23, y, T.ROAD); M.set(24, y, T.ROAD); }
+  for (let x = 0; x < M.w; x++) for (let y = 11; y <= 14; y++) if (x < 22 || x > 25) M.set(x, y, T.PLAZA);
+  for (let x = 0; x < M.w; x++) if (x < 22 || x > 25) { M.set(x, 23, T.WALK); M.set(x, 24, T.WALK); }
+  for (const x of [23, 24]) for (const y of [12, 13, 23]) M.zebra[x + ',' + y] = 'v';
+  placeBuildings(M);
+  const keep = new Set(), reserve = reserveFn(keep);
+  for (const b of M.buildings) reserve(b.door, b.y + b.h);
+  // khu đất cho tòa thị chính, Hello Work, hội trường cưới (bản cập nhật sau)
+  for (let y = 25; y < M.h; y++) for (let x = 0; x < M.w; x++) keep.add(x + ',' + y);
+  plantTrees(M, keep, 0.02, () => false);
+  for (const x of [3, 9, 17, 30, 38, 46]) { M.lamps.push([x, 11]); M.lamps.push([x, 14]); }
+  M.parkTree = () => false;
+  M.walkLanes = { h: [[12, 0, 49], [13, 0, 49], [23, 0, 49]], v: [[22, 2, 33], [25, 2, 33]] };
+  M.carLanes = [{ h: false, at: 23, d: 1, len: 34 }, { h: false, at: 24, d: -1, len: 34 }];
+  M.edges = [{ side: 'n', to: 'town', x0: 22, x1: 25, name: '🌉 Qua cầu về thị trấn' }];
+  M.decor = (c) => {
+    // mái che phố đi bộ (アーケード)
+    for (let x = 0; x < M.w; x++) if (x < 22 || x > 25) { rect(c, 'rgba(255,255,255,.10)', x * TS, 11 * TS, TS, 2); rect(c, 'rgba(255,255,255,.10)', x * TS, 14 * TS + 14, TS, 2); }
+    for (const x of [2, 12, 30, 42]) { rect(c, '#c0392b', x * TS + 4, 11 * TS + 2, 8, 10); rect(c, '#f6d36b', x * TS + 6, 11 * TS + 4, 4, 6); }
     for (const [lx, ly] of M.lamps) drawLamp(c, lx, ly);
   };
   return M;

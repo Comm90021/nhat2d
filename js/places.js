@@ -24,7 +24,8 @@ import { setVisa } from './career.js';
 import { ringBell, mailbox } from './homes.js';
 
 const H = (h, m = 0) => h * 60 + m;
-const PLACE_CAT = { konbini: 'food', super: 'food', clinic: 'health', class: 'study', remit: 'remit', center: 'social', park: 'social', shrine: 'other', dorm: 'food', river: 'other', work: 'other' };
+const openHours = (a, b) => (S) => (S.time < H(a) || S.time >= H(b) ? `Mở cửa ${a}:00 – ${b}:00.` : null);
+const PLACE_CAT = { cafe: 'food', izakaya: 'social', karaoke: 'social', cinema: 'social', gamecenter: 'social', mall: 'shop', gym: 'health', library: 'study', sento: 'health', konbini: 'food', super: 'food', clinic: 'health', class: 'study', remit: 'remit', center: 'social', park: 'social', shrine: 'other', dorm: 'food', river: 'other', work: 'other' };
 let curPlace = '';
 const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const buy = (label, cost, fx, res, sub) => ({ label, cost, minutes: 5, fx, res, sub });
@@ -46,14 +47,14 @@ const PLACES = {
         },
       },
       { label: '💤 Chợp mắt 1 tiếng', minutes: 60, fx: { energy: 14, mood: 1 }, cond: (s) => (s.today.nap ? 'Hôm nay đã chợp mắt rồi' : null), after: (s) => { s.today.nap = true; }, res: 'Bạn ngủ một giấc ngắn, người tỉnh táo hơn.' },
-      { label: '🍳 Nấu ăn', sub: `Còn ${S.inv.ingredients} phần nguyên liệu`, minutes: 40, fx: { full: 45, mood: 4, health: 1 }, cond: (s) => (s.inv.ingredients > 0 ? null : 'Hết nguyên liệu — mua ở siêu thị'), after: (s) => { s.inv.ingredients--; }, res: '「いただきます！」 Cơm nhà tự nấu vừa rẻ vừa ngon.' },
+      { label: '🍳 Nấu ăn', sub: `Còn ${S.inv.ingredients} phần nguyên liệu`, minutes: 40, fx: { full: 45, mood: 4, health: 1, cook: 1.5 }, cond: (s) => (s.inv.ingredients > 0 ? null : 'Hết nguyên liệu — mua ở siêu thị'), after: (s) => { s.inv.ingredients--; }, res: '「いただきます！」 Cơm nhà tự nấu vừa rẻ vừa ngon.' },
       {
         label: '📱 Gọi video về nhà', minutes: 30, fx: { mood: 10 }, cond: (s) => (s.today.call ? 'Hôm nay đã gọi rồi' : null),
         after: (s) => { s.today.call = true; fam(s).lastCall = s.day; famGain(s, 3); if (s.time >= H(22) && Math.random() < 0.5) s.flags.lateCall = true; },
         res: (s) => (s.time >= H(22) ? 'Nói chuyện vui quá, quên mất đã khuya. Tường ký túc xá mỏng lắm…' : 'Mẹ hỏi ăn uống thế nào, bố dặn giữ sức khỏe. Bạn thấy nhẹ lòng hơn.'),
       },
       { label: '📖 Tự học tiếng Nhật', sub: '3 câu hỏi · 60 phút', minutes: 60, energy: 10, run: selfStudy },
-      ...(atLeast(S, 'ha', 2) && isAt(S, 'ha', 'dorm') ? [{ label: '🍲 Nấu ăn chung với Hà', sub: 'Không cần nguyên liệu', minutes: 60, fx: { full: 45, mood: 6, health: 1 }, cond: (s) => (s.today.cookHa ? 'Hôm nay đã nấu rồi' : null), after: (s) => { s.today.cookHa = true; gain(s, 'ha', 2); }, res: 'Hà nấu canh chua, bạn rán cá. Bữa cơm có mùi quê nhà.' }] : []),
+      ...(atLeast(S, 'ha', 2) && isAt(S, 'ha', 'dorm') ? [{ label: '🍲 Nấu ăn chung với Hà', sub: 'Không cần nguyên liệu', minutes: 60, fx: { full: 45, mood: 6, health: 1, cook: 1 }, cond: (s) => (s.today.cookHa ? 'Hôm nay đã nấu rồi' : null), after: (s) => { s.today.cookHa = true; gain(s, 'ha', 2); }, res: 'Hà nấu canh chua, bạn rán cá. Bữa cơm có mùi quê nhà.' }] : []),
       ...(canVisitHome(S) ? [{ label: '✈️ Xin nghỉ phép về thăm nhà', sub: 'Dịp Tết / hè · 4 ngày', run: async (s) => { if (await visitHome(s)) return 'leave'; } }] : []),
       ...(canSpouseVisa(S) ? [{ label: '📄 Đổi sang visa vợ/chồng người Nhật', sub: 'Đã kết hôn với người Nhật', run: async (s) => { setVisa(s, 'spouse', 3); await modal({ who: 'Cục Quản lý Xuất nhập cảnh', title: '🛂 Visa vợ/chồng người Nhật', text: 'Hồ sơ được chấp thuận. Visa này không giới hạn ngành nghề, gia hạn 1–3 năm một lần, và sau 3 năm kết hôn có thể xin thường trú.' }); } }] : []),
       ...(['ssw2', 'spouse'].includes(S.career.visa) ? [{ label: '📄 Nộp hồ sơ xin thường trú (永住)', sub: 'Lệ phí ¥10,000 · xét điều kiện', run: applyPR }] : []),
@@ -149,9 +150,9 @@ const PLACES = {
       const si = seasonIdx(S);
       const a = [
         { label: '🪑 Ngồi nghỉ ngắm cảnh', minutes: 60, fx: { mood: 7, energy: 4 }, res: 'Bạn ngồi thả lỏng, ngắm người qua lại.' },
-        { label: '🏃 Chạy bộ', minutes: 30, energy: 15, fx: { energy: -12, health: 3, mood: 3 }, res: 'Chạy vài vòng quanh hồ, người khỏe khoắn hẳn.' },
+        { label: '🏃 Chạy bộ', minutes: 30, energy: 15, fx: { energy: -12, health: 3, mood: 3, fit: 1.5, stress: -4 }, res: 'Chạy vài vòng quanh hồ, người khỏe khoắn hẳn.' },
       ];
-      if (npcsAt(S, 'park').some((id) => stateOf(S, id).act === 'sport')) a.unshift({ label: '⚽ Đá bóng với CLB', sub: 'Sáng Chủ Nhật · ai đến cũng được', minutes: 120, energy: 20, fx: (s) => ({ energy: -15, health: atLeast(s, 'daiki', 2) ? 7 : 4, mood: 7, full: -10 }), cond: (s) => (s.today.football ? 'Hôm nay đá rồi' : null), after: (s) => { s.today.football = true; gain(s, 'daiki', 3); }, res: 'Hai tiếng chạy hết sân, cả đội hò hét 「ナイス！」. Mệt mà vui.' });
+      if (npcsAt(S, 'park').some((id) => stateOf(S, id).act === 'sport')) a.unshift({ label: '⚽ Đá bóng với CLB', sub: 'Sáng Chủ Nhật · ai đến cũng được', minutes: 120, energy: 20, fx: (s) => ({ energy: -15, health: atLeast(s, 'daiki', 2) ? 7 : 4, mood: 7, full: -10, fit: 2, soc: 1, stress: -6 }), cond: (s) => (s.today.football ? 'Hôm nay đá rồi' : null), after: (s) => { s.today.football = true; gain(s, 'daiki', 3); }, res: 'Hai tiếng chạy hết sân, cả đội hò hét 「ナイス！」. Mệt mà vui.' });
       if (S.today.matsuri && S.time >= H(18) && S.time < H(22)) a.unshift({ label: '🏮 Đi lễ hội mùa hè', cost: 1500, minutes: 120, fx: { mood: 18, full: 20, jp: 1 }, cond: (s) => (s.today.matsuriDone ? 'Đã đi rồi' : null), after: (s) => { s.today.matsuriDone = true; }, res: 'Takoyaki, kẹo táo, múa bon odori theo tiếng trống… rồi pháo hoa rực trời. 「きれい〜！」' });
       if (si === 0 && !S.flags.hanamiSelf) a.push({ label: '🌸 Ngắm hoa anh đào', minutes: 60, fx: { mood: 10 }, after: (s) => { s.flags.hanamiSelf = true; }, res: 'Dưới tán hoa anh đào, bạn chụp tấm ảnh gửi về cho mẹ.' });
       if (si === 2 && !S.flags.momiji) a.push({ label: '🍁 Ngắm lá đỏ (紅葉)', minutes: 60, fx: { mood: 10 }, after: (s) => { s.flags.momiji = true; }, res: 'Lá phong đỏ như lửa. Người Nhật gọi đi ngắm lá là 紅葉狩り (momijigari).' });
@@ -207,6 +208,89 @@ const PLACES = {
     actions: () => [
       { label: '🤝 Làm tình nguyện: trò chuyện với các cụ', sub: '60 phút', minutes: 60, fx: { mood: 7, jp: 1.5 }, cond: (s) => (s.today.careVol ? 'Hôm nay đã làm rồi' : null), after: (s) => { s.today.careVol = true; }, res: 'Một cụ bà kể chuyện thời trẻ, bạn nghe được một nửa. Cụ nắm tay bạn: 「ありがとうね」.' },
       { label: '📄 Hỏi về việc điều dưỡng', minutes: 10, res: 'Ngành điều dưỡng (介護) cần người. Muốn làm theo visa Kỹ năng đặc định phải thi kỹ năng điều dưỡng + tiếng Nhật điều dưỡng, cộng với JLPT N4 trở lên. (Ứng tuyển trong 📱 → Việc làm; thi chứng chỉ điều dưỡng cũng ở đó.)' },
+    ],
+  },
+  // ======================= PHỐ KAWABATA =======================
+  cafe: {
+    name: 'Cà phê Komorebi', jp: 'カフェ', closed: openHours(8, 21),
+    desc: () => 'Quán cà phê nhỏ, nhạc jazz nhẹ, mùi cà phê rang. Nhiều sinh viên ngồi học, vài cặp đôi hẹn hò.',
+    actions: () => [
+      { label: '☕ Gọi một ly cà phê', cost: 450, minutes: 20, fx: { energy: 10, mood: 4, stress: -3 }, res: '「ホットコーヒー、お願いします」 Thơm, đắng nhẹ, tỉnh cả người.' },
+      { label: '🍰 Cà phê + bánh ngọt', cost: 900, minutes: 30, fx: { energy: 8, full: 15, mood: 6, stress: -4 }, res: 'Bánh phô mai mềm tan. Thỉnh thoảng tự thưởng cho mình cũng được.' },
+      { label: '📝 Ngồi học ở quán', sub: '¥450 · 2 câu · có không khí học', cost: 450, minutes: 60, energy: 6, run: async (s) => { pay(s, 450, 'food', 'Cà phê'); const r = await studyJapanese(s, 2, { title: 'Học ở quán · Câu', mult: 1.15 }); advance(s, 50); const out = applyFx(s, { int: 1, stress: -2 }); await modal({ title: `Học ở quán: ${r.ok}/2 câu đúng`, html: progressHtml(r) + chips(out) }); } },
+    ],
+  },
+  karaoke: {
+    name: 'Karaoke Utaya', jp: 'カラオケ', closed: openHours(12, 24),
+    desc: () => 'Phòng hát cách âm, đồ uống không giới hạn (ドリンクバー). Hát một mình (ひとカラ) ở Nhật là chuyện bình thường.',
+    actions: () => [
+      { label: '🎤 Hát một mình 1 tiếng (ひとカラ)', cost: 1200, minutes: 60, energy: 8, fx: { stress: -12, mood: 8, soc: 1, energy: -5 }, res: 'Bạn hát hết bài Việt rồi thử cả bài Nhật. Giọng chưa hay nhưng xả stress cực đã!' },
+      { label: '🎶 Luyện hát bài tiếng Nhật', cost: 1200, minutes: 60, energy: 8, fx: { stress: -8, mood: 5, jp: 1.5, soc: 1 }, res: 'Lời bài hát chạy trên màn hình có furigana — học từ vựng kiểu này nhớ lâu ghê.' },
+    ],
+  },
+  cinema: {
+    name: 'Rạp phim Hikari Cinema', jp: '映画館', closed: openHours(10, 23),
+    desc: () => 'Rạp nhỏ 3 phòng chiếu. Phim nước ngoài có phụ đề tiếng Nhật (字幕), phim hoạt hình thì lồng tiếng.',
+    actions: () => [
+      { label: '🎬 Xem một suất phim', sub: '¥1,900 · 2 tiếng · luyện nghe đọc phụ đề', cost: 1900, minutes: 120, fx: { mood: 10, stress: -12, jp: 1.5 }, res: () => ['Phim hoạt hình về cô bé đưa thư bay trên chổi — cả rạp cười rồi khóc.', 'Phim hành động bom tấn, phụ đề chạy nhanh quá đọc không kịp.', 'Phim tình cảm Nhật, đoạn cuối cả rạp sụt sịt.', 'Phim kinh dị Nhật — bạn nhắm mắt nửa phim.'][Math.floor(Math.random() * 4)] },
+      { label: '📋 Xem lịch chiếu', minutes: 5, res: 'Hôm nay: 「空の郵便屋さん」 (hoạt hình) · 「東京ラストダンス」 (tình cảm) · 「呪いの家」 (kinh dị) · bom tấn Mỹ (字幕). Thứ Tư là ngày giảm giá (レディースデー / サービスデー).' },
+    ],
+  },
+  gamecenter: {
+    name: 'Game center Arcadia', jp: 'ゲームセンター', closed: openHours(10, 23),
+    desc: () => 'Tiếng nhạc điện tử ầm ĩ, máy gắp thú xếp hàng, học sinh chơi game đánh trống.',
+    actions: () => [
+      { label: '🕹️ Chơi game 30 phút', cost: 500, minutes: 30, fx: { mood: 6, stress: -6 }, res: 'Đánh trống Taiko được hạng "Đạt" — đông người vỗ tay luôn.' },
+      { label: '🧸 Thử gắp thú', cost: 300, minutes: 10, run: async (s) => { pay(s, 300, 'social', 'Gắp thú'); advance(s, 10); const win = Math.random() < 0.15; if (win) { s.inv.plush = (s.inv.plush || 0) + 1; } const out = applyFx(s, { mood: win ? 8 : -1 }); await modal({ title: win ? '🧸 Gắp được rồi!' : '😩 Trượt…', text: win ? 'Một con gấu bông nhỏ — có thể đem tặng ai đó.' : 'Móc gắp lỏng lẻo như mọi khi. Máy gắp thú là "máy hút tiền" đấy.', html: chips([['money', -300], ...out]) }); } },
+    ],
+  },
+  mall: {
+    name: 'Trung tâm mua sắm Aeon-ya', jp: 'ショッピングセンター', closed: openHours(10, 21),
+    desc: () => 'Ba tầng: quần áo, mỹ phẩm, tiệm tóc, đồ gia dụng. Cuối tuần rất đông gia đình.',
+    actions: (S) => [
+      { label: '👕 Mua bộ quần áo mới', sub: 'Ngoại hình +, tinh thần +', cost: 6000, minutes: 60, fx: { look: 6, mood: 5 }, cat: 'shop', res: 'Áo khoác mới, quần gọn gàng. Nhìn gương thấy khác hẳn.' },
+      { label: '💇 Cắt tóc', sub: 'Mỗi tháng 1 lần là đủ', cost: 3500, minutes: 60, fx: { look: 5, mood: 3 }, cat: 'shop', cond: (s) => (s.lastHaircut && s.day - s.lastHaircut < 7 ? 'Mới cắt tóc gần đây' : null), after: (s) => { s.lastHaircut = s.day; }, res: 'Thợ cắt hỏi 「今日はどうしますか？」. Bạn chỉ ảnh trên điện thoại — ra đúng kiểu luôn.' },
+      { label: '🧴 Mỹ phẩm, chăm sóc da', cost: 2000, minutes: 20, fx: { look: 2.5 }, cat: 'shop', res: 'Sữa rửa mặt, kem dưỡng, lăn khử mùi. Người Nhật rất chú trọng vệ sinh cá nhân.' },
+    ],
+  },
+  gym: {
+    name: 'Phòng gym Power', jp: 'ジム', closed: openHours(6, 23),
+    desc: (S) => `Mở 6:00–23:00. Vé lẻ ¥800/lượt, thẻ tháng ¥6,000.${S.gymUntil >= S.day ? ' <b>Bạn đang có thẻ tháng.</b>' : ''}`,
+    actions: (S) => {
+      const fee = S.gymUntil >= S.day ? 0 : 800;
+      const lim = (s) => ((s.today.gym || 0) >= 2 ? 'Hôm nay tập đủ rồi, nghỉ cho cơ phục hồi' : null);
+      const done = (s) => { s.today.gym = (s.today.gym || 0) + 1; };
+      return [
+        { label: '🎫 Làm thẻ tháng', sub: '¥6,000 · tập không giới hạn trong 1 tháng (7 ngày)', cost: 6000, cat: 'health', cond: (s) => (s.gymUntil >= s.day ? 'Thẻ còn hạn' : null), after: (s) => { s.gymUntil = s.day + 6; }, res: 'Nhân viên đưa bạn thẻ thành viên: 「頑張ってください！」' },
+        { label: '🏋️ Tập tạ', sub: fee ? '¥800/lượt' : 'Có thẻ tháng', cost: fee, cat: 'health', minutes: 60, energy: 25, cond: lim, after: done, fx: { fit: 3, energy: -22, stress: -5, mood: 3, full: -10 }, res: 'Đẩy ngực, kéo xà, squat. Mai chắc đau cơ nhưng sướng.' },
+        { label: '🏃 Chạy máy 45 phút', sub: fee ? '¥800/lượt' : 'Có thẻ tháng', cost: fee, cat: 'health', minutes: 45, energy: 18, cond: lim, after: done, fx: { fit: 2.2, stress: -7, health: 1, energy: -16 }, res: 'Mồ hôi đầm đìa, đầu óc trống rỗng dễ chịu.' },
+        { label: '🧘 Lớp yoga', sub: fee ? '¥800/lượt' : 'Có thẻ tháng', cost: fee, cat: 'health', minutes: 45, cond: lim, after: done, fx: { stress: -10, fit: 1, mood: 4 }, res: 'Hít vào… thở ra… Cô giáo nói chậm nên bạn nghe hiểu được kha khá.' },
+      ];
+    },
+  },
+  library: {
+    name: 'Thư viện thành phố', jp: '図書館', closed: (S) => (dow(S) === 0 ? 'Thứ Hai thư viện nghỉ.' : openHours(9, 20)(S)),
+    desc: () => 'Miễn phí. Có góc sách tiếng Nhật dễ đọc (やさしい日本語), sách dạy nấu ăn, chỗ ngồi học yên tĩnh.',
+    actions: () => [
+      { label: '📖 Đọc sách', sub: 'Trí tuệ +', minutes: 60, energy: 5, cond: (s) => ((s.today.read || 0) >= 2 ? 'Đọc nhiều quá nhức mắt rồi' : null), after: (s) => { s.today.read = (s.today.read || 0) + 1; }, fx: { int: 2.5, stress: -3, mood: 2 }, res: () => ['Cuốn sách kinh tế cho người mới — hiểu thêm về tiền lương, thuế.', 'Truyện ngắn bằng やさしい日本語, đọc được gần hết không cần từ điển.', 'Sách lịch sử Nhật có tranh minh họa — thú vị hơn tưởng.'][Math.floor(Math.random() * 3)] },
+      { label: '📚 Học tiếng Nhật yên tĩnh', sub: '3 câu · ×1.25 · 60 phút', minutes: 60, energy: 10, run: async (s) => { const r = await studyJapanese(s, 3, { title: 'Thư viện · Câu', mult: 1.25 }); advance(s, 60); const out = applyFx(s, { int: 1, energy: -6 }); await modal({ title: `Thư viện: ${r.ok}/3 câu đúng`, html: progressHtml(r) + chips(out) }); } },
+      { label: '🍳 Đọc sách dạy nấu ăn', sub: 'Nấu ăn +', minutes: 30, cond: (s) => (s.today.cookbook ? 'Hôm nay đọc rồi' : null), after: (s) => { s.today.cookbook = true; }, fx: { cook: 2 }, res: 'Học được cách làm 肉じゃが và cơm cà ri Nhật — rẻ mà ngon.' },
+    ],
+  },
+  sento: {
+    name: 'Nhà tắm Matsu-no-yu', jp: '銭湯', closed: openHours(15, 24),
+    desc: () => 'Nhà tắm công cộng kiểu cũ, ¥520. Tắm rửa sạch sẽ ở vòi trước rồi mới ngâm bồn; khăn không cho vào bồn. Nam nữ tắm riêng.',
+    actions: () => [
+      { label: '♨️ Tắm nước nóng', cost: 520, minutes: 60, fx: { stress: -15, health: 3, energy: 12, mood: 5 }, cat: 'health', cond: (s) => (s.today.sento ? 'Hôm nay tắm rồi' : null), after: (s) => { s.today.sento = true; }, res: 'Nước 42 độ, ngâm đến đỏ cả người. Bao mệt mỏi tan hết.' },
+      { label: '🥛 Uống sữa chai sau khi tắm', cost: 150, minutes: 5, fx: { mood: 2, full: 5 }, cat: 'food', res: 'Tay chống hông, ngửa cổ uống một hơi — đúng kiểu người Nhật sau khi tắm sentō.' },
+    ],
+  },
+  izakaya: {
+    name: 'Izakaya Torikizoku-ya', jp: '居酒屋', closed: openHours(17, 24),
+    desc: () => 'Quán nhậu kiểu Nhật: gà nướng xiên, bia tươi, ồn ào vui vẻ. Đồng nghiệp hay rủ nhau đến sau giờ làm.',
+    actions: () => [
+      { label: '🍺 Nhậu một mình', cost: 2500, minutes: 90, fx: { mood: 6, stress: -8, health: -2, full: 35 }, cat: 'social', res: '「とりあえずビール！」 Gà nướng xiên với bia lạnh — ngày dài cũng qua.' },
+      { label: '🍢 Ăn tối (không uống rượu)', cost: 1500, minutes: 60, fx: { full: 45, mood: 4 }, cat: 'food', res: 'Cơm gà, súp miso, đậu nành luộc. No căng.' },
     ],
   },
   fudosan: {

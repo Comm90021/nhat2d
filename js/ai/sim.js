@@ -23,11 +23,11 @@ export const moodInfo = (S, id) => moodOf(moodToday(S, id));
 export function adjustMood(S, id, v) { S.world.moodAdj[id] = (S.world.moodAdj[id] || 0) + v; }
 
 const PLACE_FOR = {
-  eat: ['konbini', 'ramen', 'teishoku', 'HOME'],
-  shop: ['konbini', 'super'],
-  leisure: ['park', 'river', 'center', 'mpark', 'jpark'],
-  social: ['ramen', 'teishoku', 'park', 'konbini_front', 'center'],
-  study: ['class', 'center', 'HOME'],
+  eat: ['konbini', 'ramen', 'teishoku', 'HOME', 'izakaya', 'cafe'],
+  shop: ['konbini', 'super', 'mall'],
+  leisure: ['park', 'river', 'center', 'mpark', 'jpark', 'cinema', 'karaoke', 'gamecenter', 'gym', 'sento', 'shotengai_street'],
+  social: ['ramen', 'teishoku', 'park', 'konbini_front', 'center', 'izakaya', 'cafe', 'karaoke'],
+  study: ['class', 'center', 'HOME', 'library', 'cafe'],
   worship: ['shrine'],
   home: ['HOME'],
 };

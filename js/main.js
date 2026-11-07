@@ -23,7 +23,7 @@ import { interact } from './places.js';
 import { passOut, critical } from './days.js';
 import { drawPerson } from './pixel.js';
 import { sfx, isMuted, setMuted } from './audio.js';
-import { jpLevel, yen, vnd, STAT_INFO } from './state.js';
+import { jpLevel, yen, vnd, STAT_INFO, ensureAttr, ATTR_KEYS } from './state.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -170,6 +170,7 @@ const HELP_HTML = `<ul class="help">
 function startPlaying() {
   ensureHomes(G.S);
   ensureEmp(G.S);
+  ensureAttr(G.S);
   for (const c of G.S.certs || []) if (c.type === 'JLPT') grantLevel(G.S.lang, c.lv);
   if (!G.S.map) placePlayer('dorm');
   showScreen(null);
@@ -200,7 +201,8 @@ function bookHtml(S) {
   return `<div class="payslip">${row('💴 Tiền mặt', yen(S.money))}${row('🧾 Lương chờ lĩnh', yen(S.wage))}${row('🏦 Nợ ở quê', vnd(Math.max(0, S.debt)))}${row('💸 Đã gửi về', vnd(S.stats.sentVnd))}${row('📅 Thời gian ở Nhật', `Năm ${year(S)} · ${S.day} ngày`)}${st}${row('👵 Câu bà Sato đã dạy', S.lang.phrases.length)}${row('🏭 Ca đã làm / đi muộn / nghỉ', `${S.stats.shifts} / ${S.stats.lates} / ${S.stats.absences}`)}</div>
     <h3>🛂 Visa & nghề nghiệp</h3>${journeyHtml(S)}
     <h3>🏡 Gia đình & tình cảm</h3>${familyHtml(S)}${loveHtml(S)}
-    <h3>💞 Mối quan hệ</h3><div class="payslip">${Object.keys(PEOPLE).filter((id) => S.npc && S.npc[id] && S.npc[id].met).map((id) => `<div class="prow"><span>${esc(PEOPLE[id].name)}</span><span>${stageName(S.npc[id].aff)} · ${Math.round(S.npc[id].aff)}</span></div>`).join('') || '<div class="dim">Chưa quen ai — mở 📱 → "Ai ở đâu?"</div>'}</div>
+    <h3>📊 Chỉ số phụ</h3><div class="payslip">${ATTR_KEYS.map((k) => `<div class="prow"><span>${STAT_INFO[k].icon} ${STAT_INFO[k].label}</span><span>${Math.round(ensureAttr(S)[k])}/100</span></div><div class="pbar"><i style="width:${Math.round(ensureAttr(S)[k])}%${k === 'stress' ? ';background:#e35d5b' : ''}"></i></div>`).join('')}<div class="dim">💪 gym, chạy bộ · 🧠 thư viện, đọc sách · ✨ quần áo, cắt tóc · 🗣️ trò chuyện, karaoke · 🍳 nấu ăn · 😣 giảm bằng sentō, yoga, ngủ đủ</div></div>
+    <h3>💞 Mối quan hệ</h3><div class="payslip">${Object.keys(PEOPLE).filter((id) => S.npc && S.npc[id] && S.npc[id].met).map((id) => `<div class="prow"><span>${esc(PEOPLE[id].name)}${S.love && S.love.id === id ? ' 💞' : ''}${S.affairs && S.affairs[id] ? ' 🤫' : ''}</span><span>${stageName(S.npc[id].aff)} · ${Math.round(S.npc[id].aff)}${S.npc[id].att ? `  · 💗${Math.round(S.npc[id].att)}` : ''}</span></div>`).join('') || '<div class="dim">Chưa quen ai — mở 📱 → "Ai ở đâu?"</div>'}</div>
     <h3>🗣️ Tiếng Nhật — trình độ ${jpLevel(S)}${bestCert(S) ? ` · chứng chỉ ${bestCert(S)}` : ''}</h3>
     <div class="payslip">${levelStats(S.lang).map((l) => `<div class="prow"><span>${l.reached ? '✅' : '⬜'} ${l.lv}</span><span>${Math.min(100, Math.round((l.xp / l.need) * 100))}% · chính xác ${Math.round(l.acc * 100)}%</span></div>`).join('')}
     <div class="prow"><span>🔥 Chuỗi đúng dài nhất</span><span>${S.lang.best}</span></div></div>
@@ -221,6 +223,8 @@ $('btn-menu').onclick = () => {
         { label: '🎮 Hướng dẫn', value: 'help' },
         { label: S0.settings.shiftMode === 'mini' ? '🎮 Ca làm: Mini-game' : '🧩 Ca làm: Trắc nghiệm', sub: 'Bấm để đổi', value: 'mode' },
         { label: isMuted() ? '🔇 Âm thanh: tắt' : '🔊 Âm thanh: bật', value: 'snd' },
+        { label: S0.settings.minimap === false ? '🗺️ Bản đồ nhỏ: tắt' : '🗺️ Bản đồ nhỏ: bật', value: 'mini' },
+        { label: S0.settings.adult ? '🔞 Nội dung 18+: bật' : '🔞 Nội dung 18+: tắt', sub: 'Chỉ chuyển cảnh, luôn có bước đồng thuận', value: 'adult' },
         { label: '✈️ Về nước (kết thúc hành trình)', value: 'home' },
         { label: '💾 Lưu & về màn hình chính', value: 'quit' },
       ],
@@ -230,6 +234,11 @@ $('btn-menu').onclick = () => {
     if (v === 'home') {
       const ok = await modal({ title: 'Về nước thật sao?', text: 'Hành trình ở Nhật sẽ kết thúc và bạn xem tổng kết. Bản lưu sẽ bị xóa.', choices: [{ label: '✈️ Về nước', value: true }, { label: 'Ở lại', value: false, cancel: true }] });
       if (ok) await ending(S0, 'home');
+    }
+    if (v === 'mini') S0.settings.minimap = S0.settings.minimap === false;
+    if (v === 'adult') {
+      if (S0.settings.adult) { S0.settings.adult = false; toast('🔞 Đã tắt nội dung 18+'); }
+      else if (await modal({ title: '🔞 Bật nội dung 18+?', text: 'Chỉ dành cho người chơi từ 18 tuổi. Các cảnh thân mật chỉ chuyển cảnh (không có hình ảnh), luôn có bước hỏi đồng thuận và lựa chọn biện pháp an toàn. Có thể tắt bất cứ lúc nào.', choices: [{ label: 'Tôi đã đủ 18 tuổi — bật', value: true }, { label: 'Không', value: false, cancel: true }] })) { S0.settings.adult = true; toast('🔞 Đã bật'); }
     }
     if (v === 'snd') { setMuted(!isMuted()); toast(isMuted() ? '🔇 Đã tắt âm thanh' : '🔊 Đã bật âm thanh'); }
     if (v === 'quit') { save(); G.S = null; showTitle(); }
@@ -273,7 +282,8 @@ function frame(now) {
   if (sc === townScene && G.S && !G.busy && !modalOpen()) {
     const S = G.S;
     const ap = S.today.appt;
-    const here = curMap(S).outdoor ? (Math.hypot(S.pos.x - 12 * 16, S.pos.y - 30 * 16) < 60 && S.map === 'town' ? 'park' : null) : curMap(S).key;
+    const CM = curMap(S);
+    const here = CM.outdoor ? ((CM.spots || []).find((sp) => Math.hypot(S.pos.x - sp.tx * 16, S.pos.y - sp.ty * 16) < 64) || {}).id || null : CM.key;
     if (G.pendingExit) { G.pendingExit = false; runFlow(() => exitBuilding()); }
     else if (fadeActive()) { /* đang chuyển cảnh */ }
     else if (S.time >= MIDNIGHT) runFlow(() => passOut(S));

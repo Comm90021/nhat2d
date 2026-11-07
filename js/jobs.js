@@ -126,7 +126,7 @@ async function interview(S, role) {
   for (let i = 0; i < 3; i++) { const q = qs[i]; const o = [0, 1, 2, 3].sort(() => Math.random() - 0.5); if (await ask({ ...q, opts: o.map((k) => q.opts[k]), a: o.indexOf(0) }, { who: `Phỏng vấn · Câu ${i + 1}/5`, feedback: 'none' })) ok++; }
   for (let i = 0; i < 2; i++) { const q = pickWork(S, role.job); if (await ask(q, { who: `Phỏng vấn · Câu ${i + 4}/5`, feedback: 'none' })) ok++; }
   const jpBonus = (levelIndex(S.lang) - JP_IDX[(role.req && role.req.jp) || ''] ) * 0.05;
-  const score = ok / 5 * 0.75 + (ref ? 0.2 : 0) + ((S.fin.assets || []).some((a) => a.id === 'interview_suit') ? 0.07 : 0) + Math.max(0, jpBonus) + (S.rep - 50) / 400;
+  const score = ok / 5 * 0.75 + (ref ? 0.2 : 0) + ((S.fin.assets || []).some((a) => a.id === 'interview_suit') ? 0.07 : 0) + Math.max(0, jpBonus) + (S.rep - 50) / 400 + ((S.attr ? S.attr.soc : 25) - 30) / 400 + ((S.attr ? S.attr.look : 30) - 30) / 600;
   S.time += 120;
   if (score < 0.6) { sfx('bad'); await modal({ who: C.name, title: '📩 Kết quả phỏng vấn', jp: '不採用', text: `Cảm ơn bạn đã ứng tuyển. Lần này công ty chưa thể tuyển bạn. (Trả lời đúng ${ok}/5)<br><span class="dim">Luyện kính ngữ, chuẩn bị 志望動機, có người giới thiệu sẽ dễ hơn.</span>` }); return; }
   sfx('end');
@@ -169,7 +169,9 @@ async function certMenu(S) {
   S.certTried = S.certTried || {}; S.certTried[v] = S.day;
   const qs = [...CERT_Q[v]].sort(() => Math.random() - 0.5).slice(0, 10);
   let ok = 0;
-  for (let i = 0; i < qs.length; i++) { const q = qs[i]; const o = [0, 1, 2, 3].sort(() => Math.random() - 0.5); if (await ask({ ...q, opts: o.map((k) => q.opts[k]), a: o.indexOf(0) }, { who: `${c.name} · Câu ${i + 1}/${qs.length}`, feedback: 'none' })) ok++; }
+  // trí tuệ cao: đôi khi loại được một đáp án sai nhờ suy luận
+  const intel = S.attr ? S.attr.int : 25;
+  for (let i = 0; i < qs.length; i++) { const q = qs[i]; const o = [0, 1, 2, 3].sort(() => Math.random() - 0.5); const a = o.indexOf(0); const hide = Math.random() < intel / 220 ? [[0, 1, 2, 3].find((k) => k !== a)] : []; if (await ask({ ...q, opts: o.map((k) => q.opts[k]), a }, { who: `${c.name} · Câu ${i + 1}/${qs.length}`, feedback: 'none', hide })) ok++; }
   S.time += 180;
   if (ok / qs.length >= c.pass) {
     S.certs.push({ type: 'cert', id: v, lv: c.name, day: S.day });

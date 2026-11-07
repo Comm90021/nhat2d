@@ -39,7 +39,7 @@ export async function studyJapanese(S, n, o = {}) {
     const q = pickQuestion(S.lang);
     const tg = progress(S.lang).target, review = LEVELS.indexOf(q.lv) < LEVELS.indexOf(tg);
     const right = await ask(q, { title: `${o.title || 'Câu'} ${i + 1}/${n}`, who: `${KIND[q.k] ? KIND[q.k].label : 'Câu hỏi'} · ${review ? `ôn tập ${q.lv}` : q.lv}` });
-    const r = answer(S.lang, q, right, { mult: (o.mult || 1) * assetEffect(S, 'study') });
+    const r = answer(S.lang, q, right, { mult: (o.mult || 1) * assetEffect(S, 'study') * (0.85 + ((S.attr ? S.attr.int : 25) / 330)) });
     xp += r.gain;
     if (right) {
       ok++;

@@ -9,6 +9,7 @@ import { partner, isMarried } from './romance.js';
 import { levelIndex } from './learning.js';
 import { modal, chips, esc } from './ui.js';
 import { placePlayer } from './town.js';
+import { placeInUnit } from './world/scene.js';
 import { sfx } from './audio.js';
 import { bus } from './bus.js';
 import { isMonthEnd, holidayName } from './calendar.js';
@@ -52,6 +53,7 @@ async function endDay(S) {
   await bus.emit('day:start', S, ctx);
   if (isMonthEnd(S)) await bus.emit('month:end', S, ctx);
   placePlayer('dorm');
+  if (S.wakeUnit) { placeInUnit(S.wakeUnit); S.wakeUnit = null; }
   save();
   await morning(S, ctx);
 }

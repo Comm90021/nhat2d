@@ -115,7 +115,7 @@ export function chips(out) {
   if (!out || !out.length) return '';
   return '<div class="chips">' + out.map(([k, d]) => {
     const info = STAT_INFO[k] || { icon: '', label: k };
-    const good = d > 0;
+    const good = k === 'stress' ? d < 0 : d > 0;
     let v;
     if (k === 'money' || k === 'wage') v = (d > 0 ? '+' : '') + yen(d);
     else v = (d > 0 ? '+' : '−') + (Math.abs(d) < 1 ? Math.abs(d).toFixed(1) : Math.round(Math.abs(d)));

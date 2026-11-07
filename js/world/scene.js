@@ -3,7 +3,7 @@
 import { G, seasonIdx, tickNeeds, TIME_RATE, isWorkday, dow, MIDNIGHT, isNewYear } from '../state.js';
 import { input } from '../input.js';
 import { TS, hash2, rect, pick, text, pill, drawPerson, drawCat, drawCar } from '../pixel.js';
-import { buildTown, buildIndustrial, buildResidential, renderStatic, entrance } from './maps.js';
+import { buildTown, buildIndustrial, buildResidential, buildShotengai, renderStatic, entrance } from './maps.js';
 import { buildInterior, renderInterior } from './interior.js';
 import { drawObjectAnim } from './objects.js';
 import { findPath } from './path.js';
@@ -27,6 +27,7 @@ export function getMap(id) {
     if (id === 'town') MAPS[id] = buildTown();
     else if (id === 'minato') MAPS[id] = buildIndustrial();
     else if (id === 'jutaku') MAPS[id] = buildResidential();
+    else if (id === 'shotengai') MAPS[id] = buildShotengai();
     else if (id.startsWith('int:')) { MAPS[id] = buildInterior(id.slice(4)); MAPS[id].ver = homesVer; }
   } else if (id.startsWith('int:unit:') && MAPS[id].ver !== homesVer) {
     // nội thất căn hộ phụ thuộc người ở → dựng lại khi thế giới đổi
@@ -48,7 +49,7 @@ export function interiorKeyFor(S, bId) { return bId === 'work' ? 'work_' + orig(
 export const placeInterior = (S, place) => (place === 'work' ? 'work_' + orig(S) : AI_PLACES[place] && AI_PLACES[place].interior) || null;
 export function buildingName(b, S) { return b.id === 'work' && S ? JOBS[orig(S)].place : b.name; }
 export function findBuilding(id) {
-  for (const mid of ['town', 'minato', 'jutaku']) { const M = getMap(mid); const b = M.buildings.find((x) => x.id === id); if (b) return { M, b }; }
+  for (const mid of ['town', 'minato', 'jutaku', 'shotengai']) { const M = getMap(mid); const b = M.buildings.find((x) => x.id === id); if (b) return { M, b }; }
   return null;
 }
 
@@ -73,6 +74,27 @@ export function placePlayer(id = 'dorm') {
   S.dir = 'down';
   S.retStack = [];
   travelers.length = 0;
+}
+
+// Thức dậy trong một căn hộ (sau khi ngủ lại nhà người khác / nhà mình)
+export function placeInUnit(uid) {
+  const S = G.S;
+  const bid = uid.split('-')[0];
+  const fb = findBuilding(bid);
+  if (!fb) return false;
+  const e = entrance(fb.b);
+  const C = getMap('int:mansion:' + bid);
+  const door = C.objects.find((o) => o.unit === uid);
+  const I = getMap('int:unit:' + uid);
+  S.retStack = [{ map: fb.M.id, x: e.x, y: e.y + 2 }];
+  S.ret = door ? { map: C.id, x: door.x * TS + 8, y: (door.y + 1) * TS + 12 } : { map: C.id, ...C.entry };
+  S.map = I.id;
+  const bed = (I.slots.sleep || [])[0];
+  S.pos = bed ? { x: bed.x * TS + 8, y: (bed.y + 2) * TS + 4 } : { ...I.entry };
+  if (I.blockedTile(Math.floor(S.pos.x / TS), Math.floor((S.pos.y - 2) / TS))) S.pos = { ...I.entry };
+  S.dir = 'down';
+  travelers.length = 0;
+  return true;
 }
 
 // ---------- va chạm ----------
@@ -201,17 +223,26 @@ const train = { t: -1, next: 40 };
 const travelers = [];
 let lastHourKey = '', prevPlaces = {};
 // Đường đi giữa các khu: Hikari-dai ↔ thị trấn (đi bộ qua mép đường), thị trấn ↔ Minato (tàu)
+// thị trấn là trung tâm: các khu khác đều đi qua thị trấn
 export function nextHop(from, to) {
   if (from === to) return null;
-  if (from === 'jutaku') return 'town';
-  if (from === 'town') return to === 'jutaku' ? 'jutaku' : 'minato';
-  return 'town';
+  return from === 'town' ? to : 'town';
 }
+// điểm giữa của một lối ra mép bản đồ
+function edgePoint(M, e) {
+  if (e.side === 'w' || e.side === 'e') return { x: e.side === 'w' ? 10 : M.w * TS - 10, y: Math.round((e.y0 + e.y1) / 2) * TS + 10 };
+  return { x: Math.round((e.x0 + e.x1) / 2) * TS + 8, y: e.side === 'n' ? 12 : M.h * TS - 6 };
+}
+export const edgeHit = (M, e, S) => {
+  const tx = Math.floor(S.pos.x / TS), ty = Math.floor(S.pos.y / TS);
+  if (e.side === 'w' || e.side === 'e') return ty >= e.y0 && ty <= e.y1 && (e.side === 'w' ? S.pos.x < 11 : S.pos.x > M.w * TS - 11);
+  return tx >= e.x0 && tx <= e.x1 && (e.side === 'n' ? S.pos.y < 14 : S.pos.y > M.h * TS - 9);
+};
 // Điểm rời khu hiện tại để tới khu `to`: mép đường hoặc cửa ga
 export function exitPoint(M, to) {
   const hop = nextHop(M.id, to);
   const e = (M.edges || []).find((x) => x.to === hop);
-  if (e) return { x: e.side === 'w' ? 10 : M.w * TS - 10, y: e.y0 * TS + 12, edge: e };
+  if (e) return { ...edgePoint(M, e), edge: e };
   const st = M.buildings.find((b) => b.id === (M.id === 'minato' ? 'station2' : 'station'));
   return st ? entrance(st) : null;
 }
@@ -219,12 +250,18 @@ function walkEdge(S, e) {
   if (fade.dir) return;
   const T = getMap(e.to);
   const back = (T.edges || []).find((x) => x.to === S.map);
-  const ty = Math.floor(S.pos.y / TS);
+  const tx = Math.floor(S.pos.x / TS), ty = Math.floor(S.pos.y / TS);
   transition(() => {
     S.map = e.to;
-    const yy = back ? Math.min(back.y1, Math.max(back.y0, ty)) : ty;
-    S.pos = { x: back && back.side === 'w' ? 20 : T.w * TS - 20, y: yy * TS + 10 };
-    S.dir = back && back.side === 'w' ? 'right' : 'left';
+    if (!back || back.side === 'w' || back.side === 'e') {
+      const yy = back ? Math.min(back.y1, Math.max(back.y0, ty)) : ty;
+      S.pos = { x: back && back.side === 'w' ? 20 : T.w * TS - 20, y: yy * TS + 10 };
+      S.dir = back && back.side === 'w' ? 'right' : 'left';
+    } else {
+      const xx = Math.min(back.x1, Math.max(back.x0, back.x0 + (tx - (e.x0 || 0))));
+      S.pos = { x: xx * TS + 8, y: back.side === 'n' ? 30 : T.h * TS - 22 };
+      S.dir = back.side === 'n' ? 'down' : 'up';
+    }
     S.ret = null; S.retStack = [];
     travelers.length = 0; lastHourKey = '';
   });
@@ -312,8 +349,8 @@ function spotNpcs(S, M) {
 // NPC trong nhà: xếp vào chỗ theo hoạt động
 const SLOT_PREF = {
   work: ['work', 'staff', 'boss'], boss: ['boss', 'staff', 'work'], staff: ['staff', 'work'], eat: ['eat', 'rest'], shop: ['shop'],
-  home: ['rest', 'study', 'cook'], sleep: ['sleep'], study: ['study', 'rest'], leisure: ['rest'], social: ['rest', 'eat'],
-  volunteer: ['rest'], health: ['patient'], hobby: ['rest'],
+  home: ['rest', 'study', 'cook'], sleep: ['sleep'], study: ['study', 'rest'], leisure: ['rest', 'sport', 'shop'], social: ['rest', 'eat'],
+  volunteer: ['rest'], health: ['patient'], hobby: ['rest', 'sport'], sport: ['sport', 'rest'],
 };
 function interiorNpcs(S, M) {
   const out = [];
@@ -508,8 +545,7 @@ export const worldScene = {
       if (!M.outdoor && S.dir === 'down' && Math.floor(S.pos.y / TS) >= M.door.y - 0 && Math.abs(S.pos.x - (M.door.x * TS + 8)) < 8) { G.pendingExit = true; }
       // đi hết đường ra mép bản đồ → sang khu bên cạnh
       if (M.outdoor && M.edges) for (const e of M.edges) {
-        const ty = Math.floor(S.pos.y / TS);
-        if (ty >= e.y0 && ty <= e.y1 && ((e.side === 'w' && S.pos.x < 11) || (e.side === 'e' && S.pos.x > M.w * TS - 11))) { walkEdge(S, e); break; }
+        if (edgeHit(M, e, S)) { walkEdge(S, e); break; }
       }
     }
     // xe, người đi đường, tàu
@@ -628,7 +664,7 @@ export const worldScene = {
         pill(c, buildingName(b, S), X + W / 2, b.y * TS - 5, { size: 6 });
       }
       if (M.id === 'town') pill(c, 'Công viên', 12 * TS + 8, 28 * TS + 6, { size: 6, bg: 'rgba(30,70,40,.8)' });
-      for (const e of M.edges || []) pill(c, e.side === 'w' ? `◀ ${e.name}` : `${e.name} ▶`, e.side === 'w' ? 52 : M.w * TS - 52, e.y0 * TS - 4, { size: 6, bg: 'rgba(40,60,110,.85)' });
+      for (const e of M.edges || []) { const p = edgePoint(M, e); const arrow = { w: '◀', e: '▶', n: '▲', s: '▼' }[e.side]; pill(c, `${arrow} ${e.name}`, e.side === 'w' ? 52 : e.side === 'e' ? M.w * TS - 52 : p.x, e.side === 'n' ? 22 : e.side === 's' ? M.h * TS - 26 : e.y0 * TS - 4, { size: 6, bg: 'rgba(40,60,110,.85)' }); }
     }
     if (!M.outdoor) {
       // biển tầng, số phòng trên cửa
@@ -730,5 +766,5 @@ function drawNpc(c, S, n) {
   drawPerson(c, n.x, n.y, P.look, dir, tAnim + n.x * 0.01, !!n.moving, pose);
 }
 
-export function initWorld() { getMap('town'); getMap('minato'); getMap('jutaku'); }
+export function initWorld() { getMap('town'); getMap('minato'); getMap('jutaku'); getMap('shotengai'); }
 export function fadeActive() { return fade.dir !== 0 || fade.a > 0; }

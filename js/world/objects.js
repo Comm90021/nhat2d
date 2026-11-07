@@ -136,6 +136,22 @@ export function drawObjectStatic(c, o) {
       rect(c, wood2, X + 1, Y + 1, W - 2, H - 2); rect(c, '#f1ece0', X + 2, Y + 2, W - 4, H - 4);
       rect(c, '#c98a6b', X + 2, Y + 9, W - 4, H - 11); rect(c, '#ffffff', X + 4, Y + 3, W - 8, 5);
       break;
+    case 'screen':
+      rect(c, '#111522', X, Y + 1, W, H - 2); rect(c, '#e9eef2', X + 2, Y + 3, W - 4, H - 7);
+      break;
+    case 'arcade':
+      for (let i = 0; i < o.w; i++) {
+        const col = ['#e35d5b', '#3f88c5', '#f2a541', '#44a36b'][(o.x + i) % 4];
+        rect(c, col, X + i * TS + 2, Y, 12, H - 1); rect(c, '#1d2229', X + i * TS + 4, Y + 2, 8, 6); rect(c, '#ddd', X + i * TS + 5, Y + 10, 6, 2);
+      }
+      break;
+    case 'bath':
+      rect(c, '#8a6c56', X, Y, W, H); rect(c, '#7fc6dd', X + 1, Y + 1, W - 2, H - 2); rect(c, '#b8e4f0', X + 2, Y + 2, W - 4, 2);
+      break;
+    case 'weights':
+      for (let i = 0; i < o.w; i++) { rect(c, '#555', X + i * TS + 2, Y + 6, 12, 2); disc(c, '#2b2b2b', X + i * TS + 3, Y + 7, 3); disc(c, '#2b2b2b', X + i * TS + 13, Y + 7, 3); }
+      rect(c, '#7f98ad', X, Y + 12, W, 3);
+      break;
     default: rect(c, '#888', X + 2, Y + 2, W - 4, H - 4);
   }
 }
@@ -168,6 +184,13 @@ export function drawObjectAnim(c, o, t, busy) {
     if (busy && Math.floor(t * 6 + o.x) % 4 === 0) { rect(c, '#fff6a8', X + 8, Y + 4, 2, 2); rect(c, '#ffb347', X + 11, Y + 2, 1, 1); rect(c, '#ffb347', X + 6, Y + 2, 1, 1); }
   } else if (o.kind === 'panel') {
     for (let i = 0; i < o.w; i++) rect(c, Math.floor(t * 2 + i) % 2 ? '#6fdc8c' : '#e35d5b', X + i * TS + 3, Y + 3, 2, 2);
+  } else if (o.kind === 'screen') {
+    // phim đang chiếu: màu đổi chậm
+    c.globalAlpha = 0.55; rect(c, ['#6fa3cf', '#f2c48a', '#8fd19e', '#d68fb0'][Math.floor(t / 3) % 4], X + 2, Y + 3, W - 4, H - 7); c.globalAlpha = 1;
+  } else if (o.kind === 'arcade') {
+    for (let i = 0; i < o.w; i++) rect(c, Math.floor(t * 4 + i + o.x) % 3 ? '#7cf2ff' : '#ff7cf5', X + i * TS + 5, Y + 3, 6, 4);
+  } else if (o.kind === 'bath') {
+    for (let i = 0; i < 2; i++) { const ph = (t * 0.5 + i * 0.5) % 1; c.globalAlpha = 0.35 * (1 - ph); rect(c, '#ffffff', X + 6 + i * 20 + Math.sin(t + i) * 3, Y - ph * 12, 3, 3); c.globalAlpha = 1; }
   } else if (o.kind === 'tv') {
     if (busy) { c.globalAlpha = 0.85; rect(c, ['#6fa3cf', '#8fc3ef', '#f2c48a'][Math.floor(t * 1.5 + o.x) % 3], X + 3, Y + 2, W - 6, 7); c.globalAlpha = 1; }
   } else if (o.kind === 'fridge' && o.w > 1) {

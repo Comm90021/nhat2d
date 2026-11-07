@@ -33,7 +33,20 @@ export const STAT_INFO = {
   money: { label: 'Tiền', icon: '💴' },
   wage: { label: 'Lương chờ lĩnh', icon: '🧾' },
   aff: { label: 'Thân thiết', icon: '💞' },
+  att: { label: 'Rung động', icon: '💗' },
+  fit: { label: 'Thể lực', icon: '💪' },
+  int: { label: 'Trí tuệ', icon: '🧠' },
+  look: { label: 'Ngoại hình', icon: '✨' },
+  soc: { label: 'Giao tiếp', icon: '🗣️' },
+  cook: { label: 'Nấu ăn', icon: '🍳' },
+  stress: { label: 'Căng thẳng', icon: '😣' },
 };
+// Chỉ số phụ (0–100): tăng chậm dần khi đã cao
+export const ATTR_KEYS = ['fit', 'int', 'look', 'soc', 'cook', 'stress'];
+export function ensureAttr(S) {
+  if (!S.attr) S.attr = { fit: 35, int: 25 + 6 * (S.certs || []).filter((c) => c.type === 'JLPT').length, look: 30, soc: 25, cook: 20, stress: 30 };
+  return S.attr;
+}
 const BOUNDED = ['health', 'energy', 'mood', 'full', 'rep'];
 
 const newCareer = (day = 1) => ({ visa: 'tts1', start: day, end: day + YEAR_DAYS, passed: {}, tried: {}, ssw1Start: null, history: [{ visa: 'tts1', day }], notified: null });
@@ -135,7 +148,7 @@ export function bestCert(S) {
   for (const c of S.certs || []) if (c.type === 'JLPT' && order.indexOf(c.lv) > order.indexOf(best)) best = c.lv;
   return best;
 }
-export const energyCap = (S) => (S.sick > 0 ? 70 : 100);
+export const energyCap = (S) => (S.sick > 0 ? 70 : 100) + Math.round((((S.attr && S.attr.fit) || 35) - 35) / 6);
 
 // Áp dụng thay đổi chỉ số. Trả về danh sách [key, delta] để hiển thị.
 export function applyFx(S, fx) {
@@ -147,6 +160,14 @@ export function applyFx(S, fx) {
     if (typeof v !== 'number' || !v) continue;
     if (k === 'money' || k === 'wage') { S[k] += v; out.push([k, v]); continue; }
     if (k === 'jp') { if (v > 0) { passiveXp(S.lang, v); out.push(['jp', v * 0.6]); } continue; }
+    if (ATTR_KEYS.includes(k)) {
+      const A = ensureAttr(S), before = A[k];
+      // tăng: càng cao càng chậm (trừ căng thẳng); giảm: trực tiếp
+      const d = v > 0 && k !== 'stress' ? v * Math.max(0.15, 1 - before / 115) : v;
+      A[k] = Math.max(0, Math.min(100, before + d));
+      if (Math.abs(A[k] - before) >= 0.1) out.push([k, A[k] - before]);
+      continue;
+    }
     if (BOUNDED.includes(k)) {
       const cap = k === 'energy' ? energyCap(S) : 100;
       const before = S[k];
