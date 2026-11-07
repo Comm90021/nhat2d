@@ -3,19 +3,19 @@
 export const JOBS = {
   factory: {
     id: 'factory', icon: '🍙', name: 'Chế biến thực phẩm', jp: '食品工場',
-    place: 'Xưởng Midori', sign: '工場', pay: 11500, energy: 34, game: 'factory',
+    place: 'Xưởng Midori', sign: '工場', monthly: 178000, energy: 34, game: 'factory',
     desc: 'Đứng dây chuyền kiểm tra cơm nắm. Cần mắt tinh, tay nhanh. Lương vừa, sức vừa.',
     tip: 'Cơm nắm thiếu rong biển, bị vỡ, dính tóc hay có vết bẩn thì loại ra. Đừng loại nhầm hàng tốt!',
   },
   farm: {
     id: 'farm', icon: '🍓', name: 'Nông nghiệp', jp: '農業',
-    place: 'Nhà kính Hoshino', sign: '農園', pay: 10500, energy: 30, game: 'farm',
+    place: 'Nhà kính Hoshino', sign: '農園', monthly: 168000, energy: 30, game: 'farm',
     desc: 'Thu hoạch dâu tây trong nhà kính. Hái đúng quả chín đỏ, đừng làm dập quả xanh. Nhẹ việc nhất.',
     tip: 'Chỉ hái quả đỏ. Quả xanh, quả trắng chưa chín — chạm vào là dập. Quả vàng hiếm được tính gấp đôi!',
   },
   build: {
     id: 'build', icon: '🏗️', name: 'Xây dựng', jp: '建設',
-    place: 'Công trường Aoba', sign: '現場', pay: 13000, energy: 44, game: 'build',
+    place: 'Công trường Aoba', sign: '現場', monthly: 198000, energy: 44, game: 'build',
     desc: 'Lắp giàn giáo, dựng khung thép. Lương cao nhất nhưng mệt nhất, và phải tuân thủ an toàn.',
     tip: 'Thả thanh thép chồng thật thẳng lên tầng dưới. Phần thừa sẽ bị cắt. 安全第一 — an toàn là trên hết!',
   },

@@ -4,7 +4,7 @@ import { QUESTIONS, LEVELS } from './content/jlpt.js';
 
 export { LEVELS };
 // Điểm kinh nghiệm cần để "đạt" mỗi cấp (cộng thêm điều kiện độ chính xác)
-export const NEED = { N5: 30, N4: 90, N3: 200, N2: 360, N1: 560 };
+export const NEED = { N5: 45, N4: 135, N3: 300, N2: 540, N1: 840 };
 const WIN = 12;       // xét độ chính xác trên 12 câu gần nhất của cấp đó
 const MIN_WIN = 6;
 export const ACC_REQ = 0.7;

@@ -3,20 +3,21 @@ import { applyFx, advance, addLog, yen } from './state.js';
 import { modal, chips } from './ui.js';
 import { gain, atLeast } from './social.js';
 import { sfx } from './audio.js';
+import { earn, pay, addDebt, debt, closeDebt } from './finance.js';
 
 const SCAMS = [
   {
     id: 'loan', title: '💸 "Vay nóng" ', who: 'Anh Thắng (người mới gặp ở hội)',
     text: 'Anh Thắng kéo bạn ra góc: "Cần tiền gửi về không? Anh cho vay 50.000¥ ngay, tháng sau trả 80.000¥ thôi. Không cần giấy tờ."',
     yes: 'Vay 50.000¥', no: 'Từ chối',
-    onYes: (S) => { S.money += 50000; S.loan = { due: S.day + 14, amount: 80000 }; addLog(S, 'Vay nóng 50.000¥ của anh Thắng'); return 'Bạn nhận 50.000¥. Lãi 60% chỉ sau 2 tuần… Đến hạn mà không trả, chuyện sẽ rất khó lường.'; },
+    onYes: (S) => { earn(S, 50000, 'loan', 'Vay nóng anh Thắng'); addDebt(S, { id: 'shark', kind: 'shark', lender: 'Anh Thắng (vay nóng)', currency: 'JPY', principal: 50000, balance: 80000, due: S.day + 14, rate: 0 }); addLog(S, 'Vay nóng 50.000¥ của anh Thắng'); return 'Bạn nhận 50.000¥, hẹn 2 tháng sau trả 80.000¥ — lãi 60%, gấp nhiều lần mức trần lãi suất hợp pháp ở Nhật (15–20%/năm). Đến hạn mà không trả, chuyện sẽ rất khó lường.'; },
     noText: 'Đúng đắn. Vay nóng lãi cắt cổ là bẫy nợ phổ biến với người lao động nước ngoài.',
   },
   {
     id: 'mlm', title: '📦 "Cơ hội làm giàu"', who: 'Chị Ngọc (giới thiệu là "chuyên viên kinh doanh")',
     text: 'Chị Ngọc mời bạn mua bộ thực phẩm chức năng 30.000¥: "Mua rồi rủ thêm 3 người là hoàn vốn, sau đó thu nhập thụ động mỗi tháng!"',
     yes: 'Góp 30.000¥', no: 'Từ chối',
-    onYes: (S) => { S.money -= 30000; S.mood = Math.max(0, S.mood - 12); addLog(S, 'Mất 30.000¥ vì đa cấp'); return 'Bạn không rủ được ai, hàng thì không bán được. 30.000¥ coi như mất trắng — mô hình đa cấp chỉ người ở trên cùng có lời.'; },
+    onYes: (S) => { pay(S, 30000, 'scam', 'Góp vốn đa cấp'); S.mood = Math.max(0, S.mood - 12); addLog(S, 'Mất 30.000¥ vì đa cấp'); return 'Bạn không rủ được ai, hàng thì không bán được. 30.000¥ coi như mất trắng — mô hình đa cấp chỉ người ở trên cùng có lời.'; },
     noText: '"Thu nhập thụ động" mà phải kéo người khác vào là dấu hiệu đa cấp. Bạn tránh được một cú lừa.',
   },
   {
@@ -31,6 +32,7 @@ const SCAMS = [
 export async function community(S) {
   S.today.community = true;
   advance(S, 120);
+  // (tiền ăn uống ở hội do mọi người góp — không tính)
   const goods = [
     'Mọi người góp mỗi người một món: nem rán, bánh xèo, gỏi cuốn. Ăn xong ai cũng thấy đỡ nhớ nhà.',
     'Một anh làm 10 năm ở Nhật chia sẻ cách khai thuế cuối năm và xin hoàn thuế người phụ thuộc.',
@@ -59,16 +61,17 @@ export async function community(S) {
 
 // Gọi mỗi sáng: đòi nợ vay nóng
 export async function loanCheck(S) {
-  if (!S.loan || S.day < S.loan.due) return;
-  const L = S.loan;
-  if (S.money >= L.amount) {
-    S.money -= L.amount;
-    S.loan = null;
-    await modal({ who: 'Anh Thắng', title: '💸 Trả nợ vay nóng', text: `Bạn phải trả ${yen(L.amount)} cho khoản vay 50.000¥. Mất trắng 30.000¥ tiền lãi.`, html: chips([['money', -L.amount]]) });
+  const L = debt(S, 'shark');
+  if (!L || S.day < L.due) return;
+  if (S.money >= L.balance) {
+    const amt = L.balance;
+    pay(S, amt, 'loan', 'Trả vay nóng anh Thắng');
+    closeDebt(S, 'shark');
+    await modal({ who: 'Anh Thắng', title: '💸 Trả nợ vay nóng', text: `Bạn phải trả ${yen(amt)} cho khoản vay 50.000¥. Tiền lãi coi như mất trắng.`, html: chips([['money', -amt]]) });
   } else {
-    S.loan.due = S.day + 7;
-    S.loan.amount = Math.round(L.amount * 1.2);
+    L.due = S.day + 7;
+    L.balance = Math.round(L.balance * 1.2);
     const out = applyFx(S, { mood: -20, health: -5 });
-    await modal({ who: 'Tin nhắn đe dọa', title: '📵 Bị đòi nợ', text: `Bạn không đủ tiền trả. Khoản nợ tăng lên ${yen(S.loan.amount)}. Họ nhắn tin đe dọa sẽ đến công ty… Hãy báo cảnh sát (110) hoặc nghiệp đoàn nếu bị đe dọa.`, html: chips(out) });
+    await modal({ who: 'Tin nhắn đe dọa', title: '📵 Bị đòi nợ', text: `Bạn không đủ tiền trả. Khoản nợ tăng lên ${yen(L.balance)}. Họ nhắn tin đe dọa sẽ đến công ty… Hãy báo cảnh sát (110) hoặc nghiệp đoàn nếu bị đe dọa.`, html: chips(out) });
   }
 }

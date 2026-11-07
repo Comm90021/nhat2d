@@ -1,11 +1,13 @@
-// Trạng thái game, lịch, lưu/tải. Không phụ thuộc DOM.
+// Trạng thái game, lưu/tải, quy đổi save. Không phụ thuộc DOM.
 import { newLang, passiveXp, levelLabel } from './learning.js';
+import { YEAR_DAYS, DAYS_PER_SEASON, doy, year, monthOf, month, seasonIdx, dow, isWorkday, scaleDay } from './calendar.js';
+import { newFin, attach, addDebt } from './finance.js';
+
+export { YEAR_DAYS, DAYS_PER_SEASON, doy, year, monthOf, month, seasonIdx, dow, isWorkday };
 
 export const SAVE_KEY = 'nhatky-tts-2d-v1';
-export const YEAR_DAYS = 56;           // 1 năm trong game = 4 mùa x 14 ngày, bắt đầu từ tháng 4
-export const DAYS_PER_SEASON = 14;
-export const START_DEBT = 40000000;    // nợ ở quê (VND)
-export const RATE = 170;               // 1 yên = 170 đồng
+export const START_DEBT = 150000000;   // nợ đi Nhật (VND) — phí môi giới, đào tạo, vé máy bay
+export const RATE = 170;               // 1 yên ≈ 170 đồng
 export const DAY_START = 6 * 60 + 30;  // 06:30
 export const MIDNIGHT = 24 * 60;
 export const TIME_RATE = 1.2;          // phút trong game / giây thật khi đi ngoài đường
@@ -34,28 +36,34 @@ export const STAT_INFO = {
 };
 const BOUNDED = ['health', 'energy', 'mood', 'full', 'rep'];
 
-export function newState({ name, gender, look, job }) {
-  return {
-    v: 2, name, gender, look, job,
+const newCareer = (day = 1) => ({ visa: 'tts1', start: day, end: day + YEAR_DAYS, passed: {}, tried: {}, ssw1Start: null, history: [{ visa: 'tts1', day }], notified: null });
+
+export function newState({ name, gender, look, job, pref }) {
+  const lang = newLang();
+  lang.phrases = [];
+  const S = {
+    v: 3, name, gender, look, job, pref: pref || (gender === 'm' ? 'f' : 'm'),
     day: 1, time: DAY_START,
-    money: 30000, debt: START_DEBT, wage: 0,
+    fin: newFin(30000, START_DEBT), wage: 0, workDays: 0,
     health: 85, energy: 100, mood: 70, full: 60, rep: 50,
-    lang: newLang(), certs: [], exam: null, skill: {},
-    career: { visa: 'tts1', start: 1, end: 1 + YEAR_DAYS, passed: {}, tried: {}, ssw1Start: null, history: [{ visa: 'tts1', day: 1 }], notified: null },
-    settings: { shiftMode: 'quiz' },
+    lang, certs: [], exam: null, skill: {},
+    career: newCareer(1),
+    settings: { shiftMode: 'quiz', adult: false },
     sick: 0, worked: false, lastScore: 0.6,
     weather: 'clear',
     today: {}, flags: {},
     inv: { ingredients: 0 },
-    rel: { sato: 0, long: 0 },
+    npc: {},
     stats: { shifts: 0, lates: 0, absences: 0, earned: 0, sentVnd: 0, best: 0 },
-    learned: [], log: [],
-    pos: null, dir: 'down',
+    log: [],
+    pos: null, dir: 'down', map: 'town',
   };
+  return attach(S);
 }
 
-// Bản lưu cũ (v1: chỉ có 56 ngày, tiếng Nhật là 1 con số) → v2
+// ---------- quy đổi save cũ ----------
 export function migrate(S) {
+  // v1 → v2: tiếng Nhật theo cấp, chứng chỉ
   if (S.v === 1) {
     S.lang = newLang();
     passiveXp(S.lang, Math.min(30, (S.jp || 0) * 0.6));
@@ -65,22 +73,50 @@ export function migrate(S) {
     S.exam = null; S.skill = {}; S.settings = { shiftMode: 'quiz' };
     S.v = 2;
   }
-  if (!S.career) {
-    S.career = { visa: 'tts1', start: 1, end: Math.max(1 + YEAR_DAYS, S.day + 20), passed: {}, tried: {}, ssw1Start: null, history: [{ visa: 'tts1', day: 1 }], notified: null };
+  if (!S.career) S.career = { ...newCareer(1), end: Math.max(1 + 56, S.day + 20) };
+  // v2 → v3: lịch 56 → 84 ngày, sổ cái tài chính, gộp hệ quan hệ
+  if (S.v === 2) {
+    const sc = scaleDay;
+    S.day = sc(S.day);
+    S.day -= (S.day - 1) % 7;                        // về Thứ Hai đầu "tháng"
+    const C = S.career;
+    C.start = sc(C.start); C.end = sc(C.end); C.ssw1Start = sc(C.ssw1Start); C.notified = sc(C.notified);
+    C.history.forEach((h) => { h.day = sc(h.day); });
+    for (const k in C.passed) C.passed[k] = sc(C.passed[k]);
+    for (const k in C.tried) C.tried[k] = sc(C.tried[k]);
+    if (C.end <= S.day) C.end = S.day + 14;
+    (S.certs || []).forEach((c) => { c.day = sc(c.day); });
+    (S.log || []).forEach((l) => { l.d = sc(l.d); });
+    const people = S.people || {};
+    for (const p of Object.values(people)) { p.last = sc(p.last); p.talked = sc(p.talked); p.gift = sc(p.gift); p.msg = sc(p.msg); }
+    if (S.love) {
+      const L = S.love;
+      L.since = sc(L.since); L.lastDate = sc(L.lastDate); L.engaged = sc(L.engaged); L.married = sc(L.married); L.wantKids = sc(L.wantKids);
+      if (L.pregnant) L.pregnant.start = sc(L.pregnant.start);
+    }
+    (S.kids || []).forEach((k) => { k.born = sc(k.born); k.seen = sc(k.seen); });
+    if (S.family) {
+      S.family.lastRemit = sc(S.family.lastRemit); S.family.lastCall = sc(S.family.lastCall);
+      for (const k in S.family.events) S.family.events[k] = sc(S.family.events[k]);
+    }
+    // tiền → sổ cái
+    S.fin = newFin(Math.round(S.money || 0), Math.round(S.debt || 0));
+    if (S.loan) { addDebt(S, { id: 'shark', kind: 'shark', lender: 'Anh Thắng (vay nóng)', currency: 'JPY', principal: 50000, balance: S.loan.amount, due: sc(S.loan.due), rate: 0 }); }
+    delete S.money; delete S.debt; delete S.loan;
+    // quan hệ
+    S.npc = people; delete S.people; delete S.rel;
+    S.lang.phrases = S.learned || []; delete S.learned;
+    S.settings = { adult: false, ...S.settings };
+    S.workDays = 0;
+    S.map = 'town';
+    S.v = 3;
   }
-  return S;
+  return attach(S);
 }
 
-// ---------- lịch ----------
-export const doy = (S) => ((S.day - 1) % YEAR_DAYS) + 1;               // ngày trong năm: 1..56
-export const year = (S) => Math.floor((S.day - 1) / YEAR_DAYS) + 1;
-export const monthOf = (d) => ((3 + Math.floor(((d - 1) * 12) / YEAR_DAYS)) % 12) + 1; // 1..12; ngày 1 = tháng 4, mỗi mùa đúng 3 tháng
-export const month = (S) => monthOf(doy(S));
-export const isNewYear = (S) => S.flags.newyear === year(S) && doy(S) >= 41 && doy(S) <= 45 && S.flags.hatsu !== year(S);
-export const seasonIdx = (S) => Math.min(3, Math.floor((doy(S) - 1) / DAYS_PER_SEASON));
+// ---------- tiện ích ----------
+export const isNewYear = (S) => S.flags.newyear === year(S) && doy(S) >= 63 && doy(S) <= 67 && S.flags.hatsu !== year(S);
 export const season = (S) => SEASONS[seasonIdx(S)];
-export const dow = (S) => (S.day - 1) % 7;
-export const isWorkday = (S) => dow(S) < 5;
 export const clamp = (v, a = 0, b = 100) => Math.max(a, Math.min(b, v));
 
 export function clockStr(min) {
@@ -107,7 +143,7 @@ export function applyFx(S, fx) {
   if (!fx) return out;
   for (const k in fx) {
     const v = fx[k];
-    if (k === 'rel') { for (const n in v) S.rel[n] = (S.rel[n] || 0) + v[n]; continue; }
+    if (k === 'rel') continue; // hệ quan hệ cũ (v1) — đã gộp vào S.npc
     if (typeof v !== 'number' || !v) continue;
     if (k === 'money' || k === 'wage') { S[k] += v; out.push([k, v]); continue; }
     if (k === 'jp') { if (v > 0) { passiveXp(S.lang, v); out.push(['jp', v * 0.6]); } continue; }
@@ -147,7 +183,9 @@ export function load() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
     const S = JSON.parse(raw);
-    return S && (S.v === 1 || S.v === 2) ? migrate(S) : null;
-  } catch (e) { return null; }
+    if (!S || ![1, 2, 3].includes(S.v)) return null;
+    if (S.v < 3) { try { localStorage.setItem(SAVE_KEY + '.bak', raw); } catch (e) { /* ignore */ } }
+    return migrate(S);
+  } catch (e) { console.error(e); return null; }
 }
 export function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } }

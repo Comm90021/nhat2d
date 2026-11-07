@@ -9,6 +9,7 @@ import { buildScene } from './mini/build.js';
 import { fixedEvent, markFixed, randomEvent, runEvent } from './events.js';
 import { sfx } from './audio.js';
 import { workQuiz } from './quiz.js';
+import { shiftRate } from './payroll.js';
 import { certBonus } from './exam.js';
 import { payMul, availableTest, takeTest, TESTS, testBlockReason, visaInfo } from './career.js';
 import { atLeast, anyAtLeast } from './social.js';
@@ -88,8 +89,9 @@ export async function startShift(S, overtime) {
     score = ok / n;
     S.skill[S.job] = (S.skill[S.job] || 0) + ok;
   }
-  const base = overtime ? job.pay * 0.625 : job.pay;
-  const pay = Math.round((base * (0.75 + 0.45 * score) * (1 + certBonus(S)) * payMul(S)) / 10) * 10;
+  const base = overtime ? shiftRate(S) * 0.5 * 1.25 : shiftRate(S);
+  const pay = Math.round((base * (0.95 + 0.1 * score) * (1 + certBonus(S)) * payMul(S)) / 10) * 10;
+  if (!overtime) S.workDays = (S.workDays || 0) + 1;
   const k = overtime ? 0.55 : 1;
   S.time = Math.max(S.time + 60, overtime ? 13 * 60 : 17 * 60);
   const out = applyFx(S, {
@@ -110,7 +112,7 @@ export async function startShift(S, overtime) {
   sfx(score >= 0.55 ? 'coin' : 'bad');
   await modal({
     who: job.place, title: `${overtime ? 'Kết thúc ca thứ Bảy' : 'Hết ca'} — Hạng ${rank}`, jp: 'お疲れ様でした！',
-    text: `Điểm ${Math.round(score * 100)}/100. Lương ca này <b>${yen(pay)}</b> sẽ được trả vào Chủ Nhật.`,
+    text: `Điểm ${Math.round(score * 100)}/100. Ca này được tính <b>${yen(pay)}</b> vào lương tháng (trả vào Chủ Nhật cuối tháng). Làm tốt thì được đánh giá cao, uy tín tăng.`,
     html: chips(out),
   });
   // sự kiện sau ca
@@ -139,8 +141,8 @@ export function workActions(S) {
         cond: (s) => testBlockReason(s, tid) || (s.time > 10 * 60 ? 'Phải đến trước 10:00' : s.today.sickLeave ? 'Hôm nay bạn đã xin nghỉ ốm' : null),
         run: async (s) => {
           await takeTest(s, tid);
-          const pay = Math.round((job.pay * 0.9 * payMul(s)) / 10) * 10;
-          s.wage += pay; s.stats.earned += pay;
+          const pay = Math.round((shiftRate(s) * payMul(s)) / 10) * 10;
+          s.wage += pay; s.stats.earned += pay; s.workDays = (s.workDays || 0) + 1;
           applyFx(s, { energy: -20, full: -25 });
         },
       });
@@ -153,7 +155,7 @@ export function workActions(S) {
     });
   } else if (sat) {
     a.push({
-      label: '⏱️ Làm thêm thứ Bảy (đến 13:00)', sub: 'Tự nguyện · lương ×1.25 · uy tín +',
+      label: '⏱️ Làm thêm thứ Bảy (đến 13:00)', sub: 'Tự nguyện · phụ cấp 25% · uy tín +',
       cond: (s) => (s.time > 9 * 60 ? 'Phải đến trước 09:00' : null),
       run: (s) => startShift(s, true),
     });

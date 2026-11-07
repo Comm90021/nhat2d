@@ -5,11 +5,12 @@ import { KIND } from './content/jlpt.js';
 import { modal, chips, esc } from './ui.js';
 import { ask } from './quiz.js';
 import { sfx } from './audio.js';
+import { pay } from './finance.js';
 
 export const FEE = 7500;
 export const SESSIONS = [
-  { id: 'jul', name: 'tháng 7', regFrom: 1, regTo: 9, exam: 15, result: 21 },
-  { id: 'dec', name: 'tháng 12', regFrom: 22, regTo: 31, exam: 39, result: 50 },
+  { id: 'jul', name: 'tháng 7', regFrom: 1, regTo: 14, exam: 28, result: 35 },
+  { id: 'dec', name: 'tháng 12', regFrom: 29, regTo: 42, exam: 63, result: 77 },
 ];
 const N_Q = 15;
 
@@ -44,7 +45,7 @@ export async function register(S) {
     ],
   });
   if (!lv) return;
-  S.money -= FEE;
+  pay(S, FEE, 'study', `Lệ phí thi JLPT ${lv}`);
   S.exam = { lv, year: year(S), sess: s.id, taken: false, score: null, pass: null };
   addLog(S, `Đăng ký thi JLPT ${lv} kỳ ${s.name}`);
   sfx('coin');

@@ -5,6 +5,7 @@ import { ending } from './days.js';
 import { nextSessionText } from './exam.js';
 import { journeyHtml } from './career.js';
 import { openPhone } from './phone.js';
+import './systems.js';
 import { PEOPLE, stageName } from './social.js';
 import { loveHtml } from './romance.js';
 import { familyHtml } from './family.js';
@@ -121,7 +122,7 @@ async function newGame() {
     who: 'Chọn nghề', title: '🧰 Bạn sang Nhật làm nghề gì?', wide: true,
     text: 'Mỗi nghề có bộ câu hỏi tình huống và mini-game riêng.',
     choices: [
-      ...Object.values(JOBS).map((j) => ({ label: `${j.icon} ${j.name} · ${j.jp}`, sub: `${j.desc} Lương cơ bản ${yen(j.pay)}/ca.`, value: j.id })),
+      ...Object.values(JOBS).map((j) => ({ label: `${j.icon} ${j.name} · ${j.jp}`, sub: `${j.desc} Lương gộp khoảng ${yen(j.monthly)}/tháng.`, value: j.id })),
       { label: '← Sửa nhân vật', value: null, cancel: true },
     ],
   });
@@ -138,7 +139,7 @@ async function intro() {
   const S = G.S, job = JOBS[S.job];
   await modal({
     who: 'Tháng Tư · Sân bay Narita', title: '✈️ Đặt chân đến Nhật Bản', jp: 'ようこそ日本へ',
-    text: `${esc(S.name)} kéo vali bước ra khỏi sân bay. Trong túi còn <b>30.000¥</b>, còn ở quê là khoản nợ <b>40 triệu đồng</b> gia đình đã vay để lo chi phí cho bạn sang Nhật.`,
+    text: `${esc(S.name)} kéo vali bước ra khỏi sân bay. Trong túi còn <b>30.000¥</b>, còn ở quê là khoản nợ <b>150 triệu đồng</b> gia đình đã vay để lo phí môi giới, đào tạo và vé máy bay cho bạn sang Nhật.`,
   });
   await modal({
     who: 'Nghiệp đoàn', title: '🏘️ Thị trấn Hikari-chō', jp: 'ひかり町',
@@ -187,10 +188,10 @@ function bookHtml(S) {
     ...(S.certs || []).map((c) => `📜 ${c.type} ${c.lv}`),
   ].filter(Boolean);
   const log = S.log.slice(0, 10).map((l) => `<li><span class="dim">Ngày ${l.d}:</span> ${esc(l.t)}</li>`).join('');
-  return `<div class="payslip">${row('💴 Tiền mặt', yen(S.money))}${row('🧾 Lương chờ lĩnh', yen(S.wage))}${row('🏦 Nợ ở quê', vnd(Math.max(0, S.debt)))}${row('💸 Đã gửi về', vnd(S.stats.sentVnd))}${row('📅 Thời gian ở Nhật', `Năm ${year(S)} · ${S.day} ngày`)}${st}${row('👵 Câu bà Sato đã dạy', S.learned.length)}${row('🏭 Ca đã làm / đi muộn / nghỉ', `${S.stats.shifts} / ${S.stats.lates} / ${S.stats.absences}`)}</div>
+  return `<div class="payslip">${row('💴 Tiền mặt', yen(S.money))}${row('🧾 Lương chờ lĩnh', yen(S.wage))}${row('🏦 Nợ ở quê', vnd(Math.max(0, S.debt)))}${row('💸 Đã gửi về', vnd(S.stats.sentVnd))}${row('📅 Thời gian ở Nhật', `Năm ${year(S)} · ${S.day} ngày`)}${st}${row('👵 Câu bà Sato đã dạy', S.lang.phrases.length)}${row('🏭 Ca đã làm / đi muộn / nghỉ', `${S.stats.shifts} / ${S.stats.lates} / ${S.stats.absences}`)}</div>
     <h3>🛂 Visa & nghề nghiệp</h3>${journeyHtml(S)}
     <h3>🏡 Gia đình & tình cảm</h3>${familyHtml(S)}${loveHtml(S)}
-    <h3>💞 Mối quan hệ</h3><div class="payslip">${Object.keys(PEOPLE).filter((id) => S.people && S.people[id] && S.people[id].met).map((id) => `<div class="prow"><span>${esc(PEOPLE[id].name)}</span><span>${stageName(S.people[id].aff)} · ${Math.round(S.people[id].aff)}</span></div>`).join('') || '<div class="dim">Chưa quen ai — mở 📱 → "Ai ở đâu?"</div>'}</div>
+    <h3>💞 Mối quan hệ</h3><div class="payslip">${Object.keys(PEOPLE).filter((id) => S.npc && S.npc[id] && S.npc[id].met).map((id) => `<div class="prow"><span>${esc(PEOPLE[id].name)}</span><span>${stageName(S.npc[id].aff)} · ${Math.round(S.npc[id].aff)}</span></div>`).join('') || '<div class="dim">Chưa quen ai — mở 📱 → "Ai ở đâu?"</div>'}</div>
     <h3>🗣️ Tiếng Nhật — trình độ ${jpLevel(S)}${bestCert(S) ? ` · chứng chỉ ${bestCert(S)}` : ''}</h3>
     <div class="payslip">${levelStats(S.lang).map((l) => `<div class="prow"><span>${l.reached ? '✅' : '⬜'} ${l.lv}</span><span>${Math.min(100, Math.round((l.xp / l.need) * 100))}% · chính xác ${Math.round(l.acc * 100)}%</span></div>`).join('')}
     <div class="prow"><span>🔥 Chuỗi đúng dài nhất</span><span>${S.lang.best}</span></div></div>

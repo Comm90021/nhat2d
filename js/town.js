@@ -340,7 +340,7 @@ export function objective(S) {
   const tid = availableTest(S);
   if (tid && isWorkday(S) && !S.worked && t <= 10 * 60 && !testBlockReason(S, tid))
     return { text: `📋 Có thể thi tay nghề ${TESTS[tid].name} ở chỗ làm${tid === 'kiso' ? ' — bắt buộc để gia hạn visa!' : ''}`, target: 'work' };
-  if (S.career.visa === 'tts1' && !S.career.passed.kiso && S.career.end - S.day <= 9)
+  if (S.career.visa === 'tts1' && !S.career.passed.kiso && S.career.end - S.day <= 14)
     return { text: '❗ Visa sắp hết — phải đỗ thi tay nghề 基礎級 (ngày thường, trước 10:00, ở chỗ làm)', target: 'work' };
   if (S.sick > 0) return { text: '🤒 Bạn đang ốm — đến phòng khám hoặc mua thuốc ở konbini', target: t >= 9 * 60 && t < 18 * 60 && dow(S) !== 6 ? 'clinic' : 'konbini' };
   if (S.full < 25) return { text: '🍙 Đói bụng — mua đồ ăn ở konbini / siêu thị hoặc về nấu', target: 'konbini' };
@@ -518,7 +518,7 @@ export const townScene = {
     ents.sort((a, b) => a.y - b.y).forEach((e) => e.f());
     // dấu "!" trên đầu NPC chưa nói chuyện hôm nay
     for (const n of npcs) {
-      if (n.cat || (S.people && S.people[n.id] && S.people[n.id].talked === S.day)) continue;
+      if (n.cat || (S.npc && S.npc[n.id] && S.npc[n.id].talked === S.day)) continue;
       const bob = Math.round(Math.sin(tAnim * 4));
       rect(c, '#ffcf5a', n.x - 1, n.y - 27 + bob, 3, 5); rect(c, '#ffcf5a', n.x - 1, n.y - 21 + bob, 3, 2);
     }

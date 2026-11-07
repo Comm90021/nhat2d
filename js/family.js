@@ -2,6 +2,7 @@
 import { applyFx, addLog, clamp, yen, doy, year, YEAR_DAYS } from './state.js';
 import { modal, chips, esc } from './ui.js';
 import { sfx } from './audio.js';
+import { pay } from './finance.js';
 
 export function fam(S) {
   if (!S.family) S.family = { sat: 60, lastRemit: 0, lastCall: 0, visits: 0, events: {} };
@@ -13,11 +14,11 @@ export function famGain(S, v) { const f = fam(S); f.sat = clamp(f.sat + v); }
 // Sự kiện gia đình (sáng Chủ Nhật – ngày lĩnh lương, hoặc ngẫu nhiên)
 const FAM_EVENTS = [
   {
-    id: 'dadSick', cond: (S) => S.day > 30, once: false, gap: 120,
+    id: 'dadSick', cond: (S) => S.day > 45, once: false, gap: 180,
     title: '🏥 Bố ốm phải nằm viện', text: 'Mẹ gọi điện, giọng run run: bố bị ngã khi đi làm đồng, phải mổ. Viện phí khoảng 60.000¥.',
     choices: [
-      { label: 'Gửi ngay 60.000¥', need: 60000, run: (S) => { S.money -= 60000; famGain(S, 15); return { text: 'Bố mổ thành công. Mẹ bảo "May có con". Bạn thở phào.', fx: { mood: 4 } }; } },
-      { label: 'Gửi 20.000¥, hẹn gửi thêm sau', need: 20000, run: (S) => { S.money -= 20000; famGain(S, 3); return { text: 'Nhà phải vay thêm họ hàng. Bạn áy náy.', fx: { mood: -6 } }; } },
+      { label: 'Gửi ngay 60.000¥', need: 60000, run: (S) => { pay(S, 60000, 'family', 'Viện phí cho bố'); famGain(S, 15); return { text: 'Bố mổ thành công. Mẹ bảo "May có con". Bạn thở phào.', fx: { mood: 4 } }; } },
+      { label: 'Gửi 20.000¥, hẹn gửi thêm sau', need: 20000, run: (S) => { pay(S, 20000, 'family', 'Gửi tiền viện phí'); famGain(S, 3); return { text: 'Nhà phải vay thêm họ hàng. Bạn áy náy.', fx: { mood: -6 } }; } },
       { label: 'Không có tiền', run: (S) => { famGain(S, -10); return { text: 'Bạn chỉ biết gọi điện an ủi. Đêm đó bạn không ngủ được.', fx: { mood: -15 } }; } },
     ],
   },
@@ -38,10 +39,10 @@ const FAM_EVENTS = [
     ],
   },
   {
-    id: 'sibling', cond: (S) => S.day > 60, once: true,
+    id: 'sibling', cond: (S) => S.day > 90, once: true,
     title: '🎓 Em đỗ đại học', text: 'Em nhắn tin: "Em đỗ đại học rồi! Nhưng học phí năm đầu hơi cao…" Khoảng 40.000¥.',
     choices: [
-      { label: 'Lo học phí năm đầu cho em', need: 40000, run: (S) => { S.money -= 40000; famGain(S, 15); return { text: 'Em hứa sẽ học thật giỏi. Bạn thấy những năm vất vả có ý nghĩa.', fx: { mood: 10 } }; } },
+      { label: 'Lo học phí năm đầu cho em', need: 40000, run: (S) => { pay(S, 40000, 'family', 'Học phí cho em'); famGain(S, 15); return { text: 'Em hứa sẽ học thật giỏi. Bạn thấy những năm vất vả có ý nghĩa.', fx: { mood: 10 } }; } },
       { label: 'Động viên em vay vốn sinh viên', run: (S) => { famGain(S, -3); return { text: 'Em hơi buồn nhưng hiểu cho bạn.', fx: { mood: -3 } }; } },
     ],
   },
@@ -50,12 +51,12 @@ const FAM_EVENTS = [
 export async function familyWeekly(S) {
   const f = fam(S);
   const msgs = [];
-  if (S.day - (f.lastRemit || 0) > 21) { f.sat = clamp(f.sat - 4); msgs.push('📞 Mẹ nhắn: "Dạo này con có khó khăn gì không? Lâu rồi không thấy con gửi tiền…" (gia đình −4)'); }
+  if (S.day - (f.lastRemit || 0) > 14) { f.sat = clamp(f.sat - 4); msgs.push('📞 Mẹ nhắn: "Dạo này con có khó khăn gì không? Lâu rồi không thấy con gửi tiền…" (gia đình −4)'); }
   if (S.day - (f.lastCall || 0) > 14) { f.sat = clamp(f.sat - 2); msgs.push('📵 Lâu rồi bạn chưa gọi về nhà (gia đình −2).'); }
   // con cái
   for (const k of S.kids || []) {
-    const cost = k.where === 'jp' ? 9000 : 6000;
-    S.money -= cost;
+    const cost = k.where === 'jp' ? 35000 : 15000;
+    pay(S, cost, 'child', k.where === 'jp' ? `Nuôi bé ${k.name}` : `Gửi tiền nuôi bé ${k.name}`);
     msgs.push(k.where === 'jp' ? `👶 Chi phí nuôi bé ${esc(k.name)} (nhà trẻ, sữa, tã): −${yen(cost)}` : `👶 Gửi tiền nuôi bé ${esc(k.name)} ở quê với ông bà: −${yen(cost)}`);
   }
   // sự kiện gia đình
@@ -79,32 +80,32 @@ export async function runFamilyEvent(S, e) {
   await modal({ text: r.text, html: chips(out) + `<p class="dim">Gia đình: ${famText(fam(S).sat)} (${Math.round(fam(S).sat)}/100)</p>` });
 }
 
-// Về thăm nhà dịp Tết (doy 41–45) hoặc hè (doy 19–24)
+// Về thăm nhà dịp Tết Việt Nam (tháng 1–2: doy 66–75) hoặc Obon (tháng 8: doy 31–35)
 export function canVisitHome(S) {
   const d = doy(S);
-  return ((d >= 41 && d <= 45) || (d >= 19 && d <= 24)) && fam(S).visitYear !== `${year(S)}-${d >= 41 ? 't' : 'h'}`;
+  return ((d >= 66 && d <= 75) || (d >= 31 && d <= 35)) && fam(S).visitYear !== `${year(S)}-${d >= 66 ? 't' : 'h'}`;
 }
 export async function visitHome(S) {
-  const d = doy(S), cost = d >= 41 ? 90000 : 70000;
+  const d = doy(S), cost = d >= 66 ? 90000 : 70000;
   const ok = await modal({
-    who: '一時帰国', title: `✈️ Về thăm nhà dịp ${d >= 41 ? 'Tết' : 'hè'}`,
-    text: `Vé máy bay và quà cáp khoảng <b>${yen(cost)}</b>. Bạn xin nghỉ phép có lương (有給休暇) 4 ngày.`,
+    who: '一時帰国', title: `✈️ Về thăm nhà dịp ${d >= 66 ? 'Tết' : 'hè'}`,
+    text: `Vé máy bay và quà cáp khoảng <b>${yen(cost)}</b>. Bạn xin nghỉ phép có lương (有給休暇) khoảng 10 ngày (3 ngày trong game).`,
     choices: [{ label: 'Về!', value: true, disabled: S.money < cost, reason: 'Không đủ tiền' }, { label: 'Thôi, để dịp khác', value: false, cancel: true }],
   });
   if (!ok) return false;
   const f = fam(S);
-  f.visitYear = `${year(S)}-${d >= 41 ? 't' : 'h'}`;
+  f.visitYear = `${year(S)}-${d >= 66 ? 't' : 'h'}`;
   f.visits++;
-  S.money -= cost;
+  pay(S, cost, 'travel', 'Về thăm nhà');
   famGain(S, 20);
-  f.lastCall = S.day + 4;
+  f.lastCall = S.day + 3;
   for (const k of S.kids || []) if (k.where === 'vn') k.seen = S.day;
   addLog(S, 'Về thăm nhà');
   sfx('end');
   const kidTxt = (S.kids || []).some((k) => k.where === 'vn') ? ' Đứa con ở quê lúc đầu còn ngại, đến hôm về thì ôm chặt không cho đi.' : '';
   await modal({ who: 'Quê nhà', title: '🏡 Về đến nhà', text: `Mẹ nấu cả mâm cơm, bố khoe với hàng xóm "con tôi đi Nhật về". Mấy ngày ngắn ngủi trôi qua thật nhanh.${kidTxt}`, html: chips([['money', -cost]]) });
-  // 4 ngày nghỉ phép: tua ngày
-  S.day += 3;
+  // nghỉ phép: tua 2 ngày
+  S.day += 2;
   S.today = { noWork: true };
   S.time = 18 * 60;
   S.mood = Math.min(100, S.mood + 30);

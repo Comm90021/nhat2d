@@ -325,14 +325,13 @@ Mỗi phiên bản đều chơi được, có test tự động, có migrate sav
 
 | Bản | Phạm vi | File chính | Kiểm tra |
 |---|---|---|---|
-| **v3.0 Lõi** | Lịch 84 ngày / 12 tháng; bus sự kiện; sổ cái `fin` (tiền mặt + tài khoản, nợ quê vào `debts`); lương tháng với khấu trừ thật; `S.npc` + lịch trình + bộ nhớ (chuyển dữ liệu từ `people`/`rel`); màn tóm tắt buổi sáng; migrate v2 → v3; dọn các trùng lặp ở mục 2 | `calendar.js`, `bus.js`, `finance.js`, `npc.js`, `state.js`, `days.js` | save v1/v2 → v3; mô phỏng 3 năm không lỗi; số dư khớp tổng giao dịch |
-| **v3.1 Kinh tế** | App ngân hàng: lịch sử giao dịch, tiết kiệm, chuyển tiền (tỷ giá thay đổi), vay ngân hàng / thẻ / vay nặng lãi, quỹ, cổ phiếu, NISA, vé số, mua tài sản, báo cáo tháng | `bank.js`, `market.js`, `content/assets.js` | mô phỏng thị trường 10 năm; lãi vay đúng; NISA không vượt hạn mức |
-| **v3.2 Nghề nghiệp** | Ga tàu + "thành phố"; 6 lĩnh vực, khoảng 12 công ty; app tìm việc; nộp hồ sơ, phỏng vấn, thử việc, thăng chức, nghỉ, bị đuổi; ràng buộc visa; chứng chỉ nghề; trường nghề → 専門士 → visa kỹ sư | `jobs.js`, `content/companies.js`, `career.js` | không đổi việc trái visa; lộ trình TTS → kỹ sư chạy được |
-| **v3.3 Xã hội** | Inbox chủ động; rủ đi chơi 2 chiều; cho vay / mượn / đòi nợ; giới thiệu việc; mời đầu tư; tin đồn lan theo nhóm; mâu thuẫn; bộ nhớ ảnh hưởng thoại và quyết định | `social.js`, `rumor.js`, `inbox.js`, `content/npc.js` (mở rộng 25–30 NPC) | NPC nhớ đúng sự kiện; tin đồn lan và tắt dần |
-| **v3.4 Tình cảm 2.0** | 6 chỉ số; máy trạng thái 5.2; địa điểm hẹn hò; công tắc 18+; đồng thuận; tránh thai; ghen, ngoại tình, quan hệ song song; đồng giới; tình công sở / cấp trên (kèm tuyến chống quấy rối) | `romance.js` (viết lại), `dates.js`, `content/dates.js` | mọi chuyển trạng thái đúng điều kiện; tắt 18+ thì không lộ nội dung người lớn |
-| **v3.5 Gia đình 2.0** | Thai kỳ 3 giai đoạn, 産休/育休 và trợ cấp, con lớn lên (nhà trẻ → trường), 児童手当, bố mẹ già, sống chung, ly thân/ly hôn, quyết định ở lại hay về Việt Nam, nhiều kết cục | `family.js`, `children.js`, `endings.js` | chạy 15 năm game có con; chi phí và trợ cấp đúng bảng |
-
-**Ước lượng:** mỗi bản khoảng 1 phiên làm việc. v3.0 lớn nhất vì phải đụng tới gần như mọi file.
+| **v3.0 Lõi** | Lịch 84 ngày / 12 tháng; bus sự kiện; sổ cái `fin`; lương tháng với khấu trừ thật; màn tóm tắt buổi sáng; migrate v2 → v3; dọn trùng lặp | `calendar.js`, `bus.js`, `finance.js`, `state.js`, `days.js` | save v1/v2 → v3; số dư khớp tổng giao dịch |
+| **v3.1 Thế giới sống** | Bộ quy luật hành vi NPC (§13); 40–50 NPC sinh theo quy luật + NPC chính có bối cảnh; bản đồ dữ liệu + khu công nghiệp + ga tàu; 9 chỗ làm; nội thất đi lại được (§14); hoạt ảnh và tương tác (§15) | `ai/*`, `world/*`, `anim.js` | mô phỏng AI bằng Node; đi vào cửa / đi tàu / ngồi vào vị trí làm việc |
+| **v3.2 Kinh tế** | App ngân hàng: lịch sử giao dịch, tiết kiệm, chuyển tiền (tỷ giá thay đổi), vay ngân hàng / thẻ / vay nặng lãi, quỹ, cổ phiếu, NISA, vé số, mua tài sản, báo cáo tháng | `bank.js`, `market.js`, `content/assets.js` | mô phỏng thị trường 10 năm; lãi vay đúng; NISA không vượt hạn mức |
+| **v3.3 Nghề nghiệp** | App tìm việc dùng 9 chỗ làm; nộp hồ sơ, phỏng vấn, thử việc, thăng chức, nghỉ, bị đuổi; ràng buộc visa; chứng chỉ nghề; trường nghề → 専門士 → visa kỹ sư | `jobs.js`, `content/companies.js`, `career.js` | không đổi việc trái visa; lộ trình TTS → kỹ sư chạy được |
+| **v3.4 Xã hội** | Bộ nhớ NPC; inbox chủ động; cho vay / mượn / đòi nợ; giới thiệu việc; mời đầu tư; tin đồn lan theo nhóm; mâu thuẫn | `social.js`, `rumor.js`, `inbox.js` | NPC nhớ đúng sự kiện; tin đồn lan và tắt dần |
+| **v3.5 Tình cảm 2.0** | 6 chỉ số; máy trạng thái 5.2; địa điểm hẹn hò; công tắc 18+; đồng thuận; tránh thai; ghen, ngoại tình, quan hệ song song; đồng giới; tình công sở / cấp trên (kèm tuyến chống quấy rối) | `romance.js` (viết lại), `dates.js` | mọi chuyển trạng thái đúng điều kiện; tắt 18+ thì không lộ nội dung người lớn |
+| **v3.6 Gia đình 2.0** | Thai kỳ 3 giai đoạn, 産休/育休 và trợ cấp, con lớn lên (nhà trẻ → trường), 児童手当, bố mẹ già, sống chung, ly thân/ly hôn, quyết định ở lại hay về Việt Nam, nhiều kết cục | `family.js`, `children.js`, `endings.js` | chạy 15 năm game có con; chi phí và trợ cấp đúng bảng |
 
 ---
 
@@ -345,3 +344,40 @@ Mỗi phiên bản đều chơi được, có test tự động, có migrate sav
 | Save cũ hỏng khi đổi lịch | migrate có test; giữ bản sao `nhatky-tts-2d-v1.bak` trước khi chuyển |
 | Nội dung nhạy cảm | công tắc 18+ mặc định tắt; không mô tả chi tiết; luôn có đồng thuận; có tuyến hỗ trợ khi bị quấy rối |
 | Cân bằng kinh tế | mô phỏng tự động hàng nghìn tháng trước khi phát hành mỗi bản |
+
+---
+
+## 13. Bộ quy luật hành vi NPC (không viết sẵn hành vi)
+
+**Nguyên tắc:** không có kịch bản "NPC X làm Y lúc Z". Mỗi NPC là một bộ tham số; hành vi sinh ra từ quy luật chung áp dụng cho mọi người. Bối cảnh viết tay (tiểu sử, bí mật, mục tiêu) chỉ đặt điểm xuất phát và vài mốc truyện.
+
+**Tham số cố định** (`traits`, 0..1): hướng ngoại `ext`, dễ chịu `agr`, tận tâm `con`, bất ổn cảm xúc `neu`, cởi mở `opn`, ghen `jea`, chung thủy `loy`, tiêu xài `spd`, tham vọng `amb`, mê may rủi `luck`. Cộng thêm `values` {tiền, gia đình, sự nghiệp, vui chơi}.
+
+**Biến trạng thái** (thay đổi liên tục): `needs` {năng lượng, đói, giao tiếp, giải trí, áp lực tiền}, `mood` (theo ngày), `money` (ước lượng), `activity` + `place` hiện tại.
+
+**Tâm trạng mỗi sáng:**
+```
+mood = 0.6·mood_hôm_qua + 0.4·mood_nền(agr, neu) + N(0, 25·neu) + thời_tiết(−8…+5) + sự_kiện(±)
+```
+Kết quả chia 5 mức: Rất vui ≥ 75 · Vui ≥ 58 · Bình thường ≥ 40 · Cáu ≥ 25 · Buồn < 25.
+
+**Chọn hoạt động mỗi khung 1 giờ (utility):** đi làm theo ca (bắt buộc, trừ khi ốm hoặc tâm trạng rất tệ và kém tận tâm → nghỉ), ăn, ngủ, mua sắm, đi chơi, thể thao, học, lễ đền, ở nhà. `điểm = nhu_cầu × trọng_số_tính_cách × khung_giờ × thời_tiết × U(0.8,1.2)`.
+
+**Xác suất hành vi hướng tới người chơi** (mỗi ngày): công thức chung `p = cơ_sở × Π hệ_số`, toàn bộ tham số nằm trong `ai/rules.js`. Bảng ví dụ ở kế hoạch v3.1 (rủ đi chơi, vay tiền, buôn chuyện, cãi nhau, giới thiệu việc, rủ đầu tư, tỏ ý thích).
+
+**Phản hồi khi người chơi tương tác:** `chấp_nhận = σ(a·quan_hệ + b·tâm_trạng + c·tính_cách_liên_quan − d·chi_phí)`. Ví dụ: cho vay thì phụ thuộc thân thiết, tận tâm, áp lực tiền của NPC; nhận lời mời thì phụ thuộc hướng ngoại, tâm trạng, giờ rảnh.
+
+## 14. Bản đồ, chỗ làm, nội thất
+
+- Bản đồ là **dữ liệu** (lưới ô ASCII + tòa nhà + cửa). Có hai khu: **thị trấn Hikari** và **khu công nghiệp Minato**, nối bằng **ga tàu** (20 phút, ¥200).
+- **9 chỗ làm:**
+  - Thị trấn: xưởng thực phẩm, nhà kính dâu, quán ramen, viện dưỡng lão.
+  - Khu công nghiệp: công trường, nhà máy linh kiện ô tô, công ty điện – tự động hóa, kho vận, văn phòng IT.
+- **Nội thất:** mỗi tòa nhà quan trọng có bản đồ bên trong. Đồ vật có hành động: giường → ngủ; bếp → nấu; vị trí làm việc → vào ca; bàn quản lý → báo cáo / xin nghỉ; tủ đồ; bồn rửa tay; quầy thu ngân → mua; bảng tin; ghế nghỉ → nói chuyện với người đang nghỉ.
+
+## 15. Hoạt ảnh và tương tác
+
+- **Tư thế:** đi, đứng (thở), ngồi, ngủ, làm việc (tay chuyển động), cầm đồ, cúi chào.
+- **Biểu cảm trên đầu** theo tâm trạng và sự kiện.
+- **Hiệu ứng:** cửa, tàu, hơi bếp, tia lửa hàn, băng chuyền, màn hình nhấp nháy, màn mờ chuyển cảnh.
+- **NPC chủ động:** đi tới bắt chuyện. Đứng gần NPC thì thấy tên + tâm trạng hôm nay.

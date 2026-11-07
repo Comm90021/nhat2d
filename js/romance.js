@@ -7,8 +7,9 @@ import { levelIndex } from './learning.js';
 import { fam, famGain, famText } from './family.js';
 import { VISAS } from './career.js';
 import { sfx } from './audio.js';
+import { pay } from './finance.js';
 
-const PREG_DAYS = 42; // ~9 tháng trong năm rút gọn 56 ngày
+const PREG_DAYS = 63; // 9 tháng (7 ngày chơi = 1 tháng)
 const NAMES_VN = ['An', 'Bình', 'Minh', 'Khang', 'Linh', 'Ngọc', 'Hân', 'Phúc'];
 const NAMES_JP = ['Haruto', 'Sora', 'Yuna', 'Hina', 'Ren', 'Mio', 'Aoi', 'Kaito'];
 
@@ -29,7 +30,7 @@ export function romanceActions(S, id) {
   if (!S.love && stageIdx(p.aff) >= 3) a.push({ label: `💗 Tỏ tình với ${d.name}`, sub: 'Thân thiết càng cao, càng dễ thành công', run: (s) => confess(s, id) });
   if (S.love && S.love.id === id) {
     a.push({ label: `💑 Hẹn hò với ${d.name}`, sub: STAGE_TXT[S.love.stage], minutes: 120, cond: (s) => (s.love.lastDate === s.day ? 'Hôm nay đã hẹn hò rồi' : null), run: (s) => date(s) });
-    if (S.love.stage === 'dating' && S.day - S.love.since >= 28 && p.aff >= 85) a.push({ label: '💍 Cầu hôn', sub: 'Cần ¥150,000 (nhẫn, lễ ra mắt)', cond: (s) => (s.money < 150000 ? 'Chưa đủ tiền' : null), run: (s) => propose(s) });
+    if (S.love.stage === 'dating' && S.day - S.love.since >= 42 && p.aff >= 85) a.push({ label: '💍 Cầu hôn', sub: 'Cần ¥150,000 (nhẫn, lễ ra mắt)', cond: (s) => (s.money < 150000 ? 'Chưa đủ tiền' : null), run: (s) => propose(s) });
     if (S.love.stage === 'engaged') a.push({ label: '📜 Đăng ký kết hôn & làm đám cưới nhỏ', sub: '婚姻届 · tiệc cưới ¥120,000', cond: (s) => (s.money < 120000 ? 'Chưa đủ tiền' : null), run: (s) => marry(s) });
     if (isMarried(S) && !S.love.pregnant && !S.love.wantKids) a.push({ label: '👶 Bàn chuyện sinh con', run: (s) => talkKids(s) });
   }
@@ -71,7 +72,7 @@ async function date(S) {
   });
   if (v < 0) return;
   const x = DATES[v];
-  S.money -= x.cost;
+  pay(S, x.cost, 'date', 'Hẹn hò');
   advance(S, x.weekend ? 360 : 120);
   S.love.lastDate = S.day;
   gain(S, S.love.id, x.aff);
@@ -83,7 +84,7 @@ async function date(S) {
 
 async function propose(S) {
   const d = partner(S);
-  S.money -= 150000;
+  pay(S, 150000, 'wedding', 'Nhẫn cầu hôn, lễ ra mắt');
   advance(S, 120);
   addLog(S, `Cầu hôn ${d.name}`);
   await modal({ who: d.name, title: '💍 Cầu hôn', text: `${esc(d.name)} bật khóc rồi gật đầu. Nhưng trước khi cưới còn phải ra mắt gia đình hai bên…`, html: chips([['money', -150000]]), ok: 'Ra mắt gia đình →' });
@@ -111,7 +112,7 @@ async function propose(S) {
 
 async function marry(S) {
   const d = partner(S);
-  S.money -= 120000;
+  pay(S, 120000, 'wedding', 'Đám cưới');
   advance(S, 300);
   S.love.stage = 'married';
   S.love.married = S.day;
@@ -137,7 +138,7 @@ export async function romanceDaily(S) {
   if (!S.love) return;
   const L = S.love, p = P(S, L.id), d = PEOPLE[L.id];
   // lâu không hẹn hò thì nguội dần
-  if (L.stage !== 'married' && S.day - L.lastDate > 10 && S.day % 3 === 0) {
+  if (L.stage !== 'married' && S.day - L.lastDate > 14 && S.day % 3 === 0) {
     p.aff = clamp(p.aff - 3);
     if (p.aff < 55) {
       addLog(S, `Chia tay ${d.name}`);
@@ -147,7 +148,7 @@ export async function romanceDaily(S) {
       return;
     }
   }
-  if (L.stage === 'married' && S.day - L.lastDate > 14 && S.day % 4 === 0) p.aff = clamp(p.aff - 2);
+  if (L.stage === 'married' && S.day - L.lastDate > 21 && S.day % 4 === 0) p.aff = clamp(p.aff - 2);
   // mang thai
   if (L.stage === 'married' && L.wantKids && !L.pregnant && Math.random() < 0.07) {
     L.pregnant = { start: S.day };

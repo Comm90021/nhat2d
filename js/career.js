@@ -5,6 +5,7 @@ import { modal, chips, esc } from './ui.js';
 import { ask } from './quiz.js';
 import { pickWork } from './quiz.js';
 import { sfx } from './audio.js';
+import { pay } from './finance.js';
 
 const Y = YEAR_DAYS;
 export const VISAS = {
@@ -17,8 +18,8 @@ export const VISAS = {
   pr: { short: 'Thường trú', name: 'Thường trú nhân (永住者)', years: 0, pay: 1.35, family: true, change: true },
 };
 export const TESTS = {
-  kiso: { name: '技能検定 基礎級', vi: 'Thi tay nghề bậc cơ bản', visa: 'tts1', from: 28, n: 10, pass: 0.6, note: 'Bắt buộc phải đỗ để lên TTS số 2.' },
-  san: { name: '技能検定 随時3級', vi: 'Thi tay nghề bậc 3', visa: 'tts2', from: 84, n: 12, pass: 0.6, note: 'Cần đỗ (và công ty đánh giá tốt) để lên TTS số 3.' },
+  kiso: { name: '技能検定 基礎級', vi: 'Thi tay nghề bậc cơ bản', visa: 'tts1', from: 56, n: 10, pass: 0.6, note: 'Bắt buộc phải đỗ để lên TTS số 2.' },
+  san: { name: '技能検定 随時3級', vi: 'Thi tay nghề bậc 3', visa: 'tts2', from: 126, n: 12, pass: 0.6, note: 'Cần đỗ (và công ty đánh giá tốt) để lên TTS số 3.' },
   ssw2: { name: '特定技能2号評価試験', vi: 'Thi Kỹ năng đặc định số 2', visa: 'ssw1', from: 0, n: 14, pass: 0.7, note: 'Cần tay nghề cao, kinh nghiệm làm tổ trưởng (uy tín ≥ 65). Đỗ là chuyển sang KNĐĐ số 2.' },
 };
 
@@ -129,7 +130,7 @@ export async function applyPR(S) {
     return;
   }
   const fee = 10000;
-  S.money -= fee;
+  pay(S, fee, 'other', 'Lệ phí xin thường trú');
   setVisa(S, 'pr', 0);
   sfx('end');
   await modal({ who: 'Cột mốc', title: '🏠 Được cấp thường trú!', jp: '永住許可', text: `Sau ${Math.floor(S.day / Y)} năm, bạn trở thành thường trú nhân Nhật Bản: không cần gia hạn visa, tự do chọn việc. Bạn vẫn có thể tiếp tục cuộc sống ở đây.`, html: chips([['money', -fee]]) });
@@ -140,7 +141,7 @@ export async function careerMorning(S) {
   const C = S.career;
   if (C.visa === 'pr') return null;
   const left = C.end - S.day;
-  if (left > 0 && left <= 9 && C.notified !== C.end) {
+  if (left > 0 && left <= 14 && C.notified !== C.end) {
     C.notified = C.end;
     await modal({ who: 'Nghiệp đoàn / công ty', title: '⏳ Visa sắp hết hạn', text: `${esc(visaInfo(S).name)} sẽ hết hạn sau <b>${left} ngày</b>.<br>${needText(S)}` });
     return null;
@@ -171,7 +172,7 @@ async function transition(S) {
     return 'ending';
   }
   if (C.visa === 'tts2' || C.visa === 'tts3') {
-    const backed = S.people && S.people.yamada && S.people.yamada.aff >= 70;
+    const backed = S.npc && S.npc.yamada && S.npc.yamada.aff >= 70;
     const canT3 = C.visa === 'tts2' && C.passed.san && (S.rep >= 60 || backed);
     const v = await modal({
       who: 'Hết hạn hợp đồng', title: `📄 Kết thúc ${visaInfo(S).short}`, text: needText(S),
@@ -182,7 +183,7 @@ async function transition(S) {
       ],
     });
     if (v === 'home') return 'ending-home';
-    if (v === 'tts3') { setVisa(S, 'tts3', 2); S.money -= 60000; await modal({ title: '✈️ Về thăm nhà 1 tháng', text: 'Bạn về Việt Nam một tháng theo quy định trước khi bắt đầu TTS số 3. Tiền vé và chi tiêu: ¥60,000. Gặp lại bố mẹ, bạn thấy mình đã khác nhiều.', html: chips([['money', -60000]]) }); S.mood = Math.min(100, S.mood + 25); return null; }
+    if (v === 'tts3') { setVisa(S, 'tts3', 2); pay(S, 60000, 'travel', 'Về nước 1 tháng trước TTS số 3'); await modal({ title: '✈️ Về thăm nhà 1 tháng', text: 'Bạn về Việt Nam một tháng theo quy định trước khi bắt đầu TTS số 3. Tiền vé và chi tiêu: ¥60,000. Gặp lại bố mẹ, bạn thấy mình đã khác nhiều.', html: chips([['money', -60000]]) }); S.mood = Math.min(100, S.mood + 25); return null; }
     setVisa(S, 'ssw1', 1);
     sfx('end');
     await modal({ who: 'Cột mốc', title: '🛂 Kỹ năng đặc định số 1', jp: '特定技能1号', text: 'Bạn không còn là thực tập sinh nữa! Lương tăng, được tự chọn chỗ làm trong cùng ngành. Visa gia hạn từng năm, tổng cộng tối đa 5 năm. Lưu ý: KNĐĐ số 1 không được bảo lãnh gia đình sang.' });

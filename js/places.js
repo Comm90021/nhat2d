@@ -8,6 +8,7 @@ import { modal, chips, toast } from './ui.js';
 import { sleep } from './days.js';
 import { workActions } from './work.js';
 import { sfx } from './audio.js';
+import { pay } from './finance.js';
 import { talkTo, peopleHere, atLeast, AVAIL, P, gain, personActions, PEOPLE } from './social.js';
 import { community } from './community.js';
 import { fam, famGain, canVisitHome, visitHome } from './family.js';
@@ -15,6 +16,8 @@ import { canSpouseVisa } from './romance.js';
 import { setVisa } from './career.js';
 
 const H = (h, m = 0) => h * 60 + m;
+const PLACE_CAT = { konbini: 'food', super: 'food', clinic: 'health', class: 'study', remit: 'remit', center: 'social', park: 'social', shrine: 'other', dorm: 'food', river: 'other', work: 'other' };
+let curPlace = '';
 const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const buy = (label, cost, fx, res, sub) => ({ label, cost, minutes: 5, fx, res, sub });
 
@@ -180,6 +183,7 @@ function reasonOf(a, S) {
 
 export async function openPlace(id) {
   const P = PLACES[id];
+  curPlace = id;
   const S = G.S;
   sfx('door');
   const closed = P.closed && P.closed(S);
@@ -202,7 +206,7 @@ export async function openPlace(id) {
 
 async function doAction(a, S) {
   if (a.run) return a.run(S);
-  if (a.cost) { S.money -= a.cost; sfx('coin'); }
+  if (a.cost) { pay(S, a.cost, a.cat || PLACE_CAT[curPlace] || 'other', a.label.replace(/^\S+\s/, '')); sfx('coin'); }
   if (a.minutes) advance(S, a.minutes);
   if (a.after) a.after(S);
   const out = applyFx(S, val(a.fx, S));
@@ -239,7 +243,7 @@ async function selfStudy(S) {
 // ---------- đền: rút quẻ ----------
 async function omikuji(S) {
   S.today.omikuji = true;
-  S.money -= 100;
+  pay(S, 100, 'other', 'Omikuji');
   advance(S, 10);
   const r = Math.random();
   let title, text, fx;
@@ -263,7 +267,7 @@ async function remit(S, illegal) {
   choices.push({ label: 'Thôi', value: 0, cancel: true });
   const v = await modal({ who: illegal ? 'Kênh không phép' : 'Công ty chuyển tiền có giấy phép', title: '💸 Gửi bao nhiêu?', text: illegal ? 'Tỷ giá cao hơn, không mất phí… nhưng không có gì đảm bảo.' : `Phí ${yen(fee)} mỗi lần gửi. Tiền về tài khoản gia đình trong ngày.`, choices });
   if (!v) return;
-  S.money -= v + fee;
+  pay(S, v + fee, 'remit', illegal ? 'Chuyển tiền qua kênh không phép' : `Chuyển tiền về nhà (phí ${fee}¥)`);
   advance(S, 20);
   if (illegal && Math.random() < 0.22) {
     const out = applyFx(S, { mood: -18 });

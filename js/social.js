@@ -6,19 +6,20 @@ import { modal, chips, toast, esc } from './ui.js';
 import { pickQuestion, answer } from './learning.js';
 import { ask } from './quiz.js';
 import { sfx } from './audio.js';
+import { pay } from './finance.js';
 
 export { PEOPLE };
 // Cho phép module khác (romance.js) gắn thêm lựa chọn vào menu từng người
 export const hooks = { extra: null };
 export function P(S, id) {
-  S.people = S.people || {};
-  if (!S.people[id]) S.people[id] = { aff: 0, met: false, last: 0, talked: 0 };
-  return S.people[id];
+  S.npc = S.npc || {};
+  if (!S.npc[id]) S.npc[id] = { aff: 0, met: false, last: 0, talked: 0 };
+  return S.npc[id];
 }
 export const stageIdx = (aff) => (aff >= 70 ? 3 : aff >= 40 ? 2 : aff >= 15 ? 1 : 0);
 export const stageName = (aff) => STAGES[stageIdx(aff)].name;
 // Đã đạt mức thân thiết st (0..3) với người id?
-export const atLeast = (S, id, st) => !!(S.people && S.people[id] && S.people[id].met && stageIdx(S.people[id].aff) >= st);
+export const atLeast = (S, id, st) => !!(S.npc && S.npc[id] && S.npc[id].met && stageIdx(S.npc[id].aff) >= st);
 export const anyAtLeast = (S, ids, st) => ids.some((id) => atLeast(S, id, st));
 
 export function gain(S, id, v) {
@@ -68,9 +69,9 @@ export async function talkTo(S, id) {
   if (id === 'mai' && st >= 2) fx.jp = 1;
   if (id === 'long') extra += `<br>💡 "${esc(LONG_TIPS[(p.aff + S.day) % LONG_TIPS.length])}"`;
   if (id === 'sato') {
-    S.learned = S.learned || [];
-    const next = PHRASES.find((x) => !S.learned.includes(x.id)) || PHRASES[S.day % PHRASES.length];
-    if (!S.learned.includes(next.id)) S.learned.push(next.id);
+    S.lang.phrases = S.lang.phrases || [];
+    const next = PHRASES.find((x) => !S.lang.phrases.includes(x.id)) || PHRASES[S.day % PHRASES.length];
+    if (!S.lang.phrases.includes(next.id)) S.lang.phrases.push(next.id);
     extra += `<br>👵 Bà dạy bạn: <b>${esc(next.jp)}</b> (<i>${esc(next.ro)}</i>) — ${esc(next.vi)}`;
     fx.jp = (fx.jp || 0) + 1;
   }
@@ -96,7 +97,7 @@ export async function giveGift(S, id) {
   });
   if (!v) return;
   const g = GIFTS[v];
-  S.money -= g.cost;
+  pay(S, g.cost, 'gift', `Quà cho ${d.name}`);
   const p = P(S, id);
   if (p.gift === S.day) { await modal({ text: `${d.name} ngại ngùng: "Hôm nay nhận rồi mà…"` }); return; }
   p.gift = S.day;
@@ -112,7 +113,7 @@ export async function invite(S, id) {
   const cost = 2000;
   if (S.money < cost) { toast('Không đủ tiền đi ăn'); return; }
   if (S.time + 120 > MIDNIGHT) { toast('Khuya quá rồi'); return; }
-  S.money -= cost;
+  pay(S, cost, 'social', `Đi ăn với ${d.name}`);
   advance(S, 120);
   const up = gain(S, id, 7);
   const out = applyFx(S, { mood: 8, full: 40 });
@@ -135,10 +136,10 @@ export function personActions(S, id) {
 
 // Giảm thân thiết khi lâu không liên lạc (gọi mỗi ngày)
 export function socialDaily(S) {
-  for (const p of Object.values(S.people || {})) {
+  for (const p of Object.values(S.npc || {})) {
     if (!p.met) continue;
     const gap = S.day - (p.last || 0);
-    if (gap > 7 && gap % 3 === 0 && p.aff > 15) p.aff = Math.max(15, p.aff - 2);
+    if (gap > 14 && gap % 3 === 0 && p.aff > 15) p.aff = Math.max(15, p.aff - 2);
   }
 }
 

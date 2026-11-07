@@ -1,5 +1,7 @@
 // Sự kiện: cố định theo ngày + ngẫu nhiên (buổi sáng / sau ca làm).
 import { G, applyFx, advance, addLog, isWorkday, dow, seasonIdx, yen, doy, year } from './state.js';
+import { setCat, clearCat } from './finance.js';
+import { JOBS } from './data.js';
 import { modal, chips } from './ui.js';
 
 // Lựa chọn: { label, sub, need (yên), cond(S)->lý do|null, fx (obj|fn), res (str|fn), minutes, setTime,
@@ -26,17 +28,17 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'tsuyu', day: 12, when: 'morning', who: 'Dự báo thời tiết', title: '☔ Bắt đầu mùa mưa', jp: '梅雨入り',
+    id: 'tsuyu', day: 15, when: 'morning', who: 'Dự báo thời tiết', title: '☔ Bắt đầu mùa mưa', jp: '梅雨入り',
     text: 'Mùa Hạ đến cùng mùa mưa tsuyu: ẩm ướt, quần áo phơi mãi không khô. Sau đó sẽ là những ngày nắng nóng hầm hập.',
     choices: [{ label: 'Nhớ uống đủ nước, tránh say nắng (熱中症)', fx: { jp: 0.5 } }],
   },
   {
-    id: 'matsuri', day: 20, when: 'morning', who: 'Tờ rơi trên bảng tin', title: '🏮 Lễ hội mùa hè tối nay', jp: '夏祭り',
+    id: 'matsuri', day: 34, when: 'morning', who: 'Tờ rơi trên bảng tin', title: '🏮 Lễ hội mùa hè tối nay', jp: '夏祭り',
     text: 'Tối nay từ 18:00 đến 22:00 có lễ hội ở công viên: quầy takoyaki, kẹo táo, múa bon odori và bắn pháo hoa.',
     choices: [{ label: 'Nhất định phải đi!', today: { matsuri: true }, res: 'Nhớ ra công viên (phía nam thị trấn) sau 18:00 nhé.' }],
   },
   {
-    id: 'quake', day: 24, when: 'morning', who: '2 giờ sáng', title: '⚠️ Động đất!', jp: '緊急地震速報',
+    id: 'quake', day: 37, when: 'morning', who: '2 giờ sáng', title: '⚠️ Động đất!', jp: '緊急地震速報',
     text: 'Điện thoại kêu inh ỏi, cả phòng rung lắc mạnh, tủ quần áo kêu lạch cạch.',
     choices: [
       { label: 'Chui xuống gầm bàn, che đầu, đợi hết rung',
@@ -50,12 +52,12 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'autumn', day: 29, when: 'morning', who: 'Lịch', title: '🍁 Mùa Thu', jp: '秋',
+    id: 'autumn', day: 43, when: 'morning', who: 'Lịch', title: '🍁 Mùa Thu', jp: '秋',
     text: 'Trời mát dần, lá bắt đầu chuyển đỏ. Mùa thu cũng là mùa bão — để ý thông báo thời tiết nhé.',
     choices: [{ label: 'OK' }],
   },
   {
-    id: 'typhoon', day: 26, when: 'morning', who: 'Thông báo của công ty', title: '🌀 Bão đổ bộ', jp: '台風のため、本日は休業です',
+    id: 'typhoon', day: 40, when: 'morning', who: 'Thông báo của công ty', title: '🌀 Bão đổ bộ', jp: '台風のため、本日は休業です',
     text: 'Bão lớn đổ bộ. Công ty cho nghỉ làm, yêu cầu mọi người ở trong nhà đến chiều.',
     choices: [
       { label: 'Ở yên trong phòng đến chiều', today: { noWork: true }, setTime: 16 * 60,
@@ -64,12 +66,12 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'winter', day: 43, when: 'morning', who: 'Sáng nay', title: '❄️ Tuyết đầu mùa', jp: '初雪',
+    id: 'winter', day: 66, when: 'morning', who: 'Sáng nay', title: '❄️ Tuyết đầu mùa', jp: '初雪',
     text: 'Mở cửa ra, cả thị trấn phủ một lớp tuyết mỏng. Lạnh, dễ cảm, tiền điện sưởi cũng tăng.',
     choices: [{ label: 'Đẹp quá!', fx: { mood: 5 } }],
   },
   {
-    id: 'bonenkai', day: 40, when: 'after', who: 'Chị Yamada', title: '🍻 Tiệc tất niên', jp: '忘年会',
+    id: 'bonenkai', day: 61, when: 'after', who: 'Chị Yamada', title: '🍻 Tiệc tất niên', jp: '忘年会',
     text: 'Tối nay công ty tổ chức tiệc tất niên — "quên đi năm cũ". Mỗi người góp 4.000¥.',
     choices: [
       { label: 'Đi!', sub: '−4.000¥', need: 4000, minutes: 180, fx: { money: -4000, mood: 15, rep: 5, full: 40, jp: 1 },
@@ -78,7 +80,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'omisoka', day: 41, when: 'morning', who: 'Cuối năm', title: '🎍 Đêm giao thừa', jp: '大晦日',
+    id: 'omisoka', day: 62, when: 'morning', who: 'Cuối năm', title: '🎍 Đêm giao thừa', jp: '大晦日',
     text: 'Ngày cuối năm. Ở đền, người ta xếp hàng cầu may đầu năm (初詣). Bạn có thể ghé đền hôm nay hoặc ngày mai.',
     choices: [{ label: 'Ghi nhớ', run: (S) => { S.flags.newyear = year(S); } }],
   },
@@ -104,7 +106,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'momcall', when: 'morning', w: 2, once: true, cond: (S) => S.day > 10,
+    id: 'momcall', when: 'morning', w: 2, once: true, cond: (S) => S.day > 15,
     who: 'Mẹ gọi điện', title: '📞 Nhà cần tiền', jp: '',
     text: 'Em trai sắp nhập học, nhà còn thiếu tiền đóng học phí. Mẹ ngập ngừng hỏi bạn có gửi thêm được không.',
     choices: [
@@ -123,7 +125,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'sidejob', when: 'morning', w: 2, once: true, cond: (S) => S.day > 8,
+    id: 'sidejob', when: 'morning', w: 2, once: true, cond: (S) => S.day > 12,
     who: 'Tin nhắn lạ', title: '💼 Lời mời làm thêm', jp: 'アルバイトしない？',
     text: 'Một người quen trên mạng rủ bạn đi làm thêm cuối tuần ở xưởng đóng gói: 1.200¥/giờ, trả tiền mặt, "không ai biết đâu".',
     choices: [
@@ -132,7 +134,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'caught', when: 'morning', w: 4, once: true, cond: (S) => S.flags.sideJob && S.day > 20,
+    id: 'caught', when: 'morning', w: 4, once: true, cond: (S) => S.flags.sideJob && S.day > 30,
     who: 'Nghiệp đoàn', title: '🚨 Bị phát hiện làm thêm', jp: '不法就労',
     text: 'Nghiệp đoàn gọi bạn lên. Họ đã biết chuyện bạn đi làm thêm ở xưởng đóng gói.',
     choices: [
@@ -160,7 +162,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'tax', when: 'morning', w: 3, once: true, cond: (S) => S.day >= 30,
+    id: 'tax', when: 'morning', w: 3, once: true, cond: (S) => S.day >= 15,
     who: 'Hộp thư', title: '✉️ Thư từ tòa thị chính', jp: '住民税のお知らせ',
     text: 'Thông báo thuế cư trú: 6.000¥. Có thể nộp ngay tại konbini.',
     choices: [
@@ -169,7 +171,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'tax2', when: 'morning', w: 4, once: true, cond: (S) => S.flags.taxLate && S.day >= 36,
+    id: 'tax2', when: 'morning', w: 4, once: true, cond: (S) => S.flags.taxLate && S.day >= 30,
     who: 'Hộp thư', title: '✉️ Thư nhắc nộp thuế', jp: '督促状',
     text: 'Bạn chưa nộp thuế cư trú. Tiền phạt chậm nộp đã được cộng thêm.',
     choices: [{ label: 'Nộp ngay (7.500¥)', fx: { money: -7500, rep: -2 }, res: 'Nợ thuế có thể gây khó khăn khi gia hạn visa. Hãy nộp đúng hạn.' }],
@@ -184,7 +186,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'chuiAd', when: 'morning', w: 2, once: true, cond: (S) => S.day > 4,
+    id: 'chuiAd', when: 'morning', w: 2, once: true, cond: (S) => S.day > 6,
     who: 'Nhóm Facebook đồng hương', title: '📢 Chuyển tiền "giá tốt"', jp: '',
     text: 'Có người quảng cáo nhận chuyển tiền về Việt Nam với tỷ giá cao hơn, không mất phí. "Uy tín, nhanh gọn".',
     choices: [
@@ -221,7 +223,7 @@ export const EVENTS = [
   },
 
   {
-    id: 'ikusei', when: 'morning', w: 3, once: true, cond: (S) => S.day > 15,
+    id: 'ikusei', when: 'morning', w: 3, once: true, cond: (S) => S.day > 20,
     who: 'Tin tức', title: '📰 Chế độ thực tập sinh sắp thay đổi', jp: '育成就労制度',
     text: 'Báo đưa tin: Nhật Bản đã thông qua luật thay chế độ thực tập sinh kỹ năng bằng chế độ mới 「育成就労」 (dự kiến áp dụng từ năm 2027). Mục tiêu là đào tạo người lao động lên trình độ Kỹ năng đặc định số 1, và cho phép chuyển chỗ làm trong cùng ngành khi đủ điều kiện.',
     choices: [
@@ -230,7 +232,7 @@ export const EVENTS = [
     ],
   },
   {
-    id: 'kisoRemind', when: 'morning', w: 6, once: true, cond: (S) => S.career && S.career.visa === 'tts1' && S.day - S.career.start >= 28,
+    id: 'kisoRemind', when: 'morning', w: 6, once: true, cond: (S) => S.career && S.career.visa === 'tts1' && S.day - S.career.start >= 56,
     who: 'Tổ trưởng Yamada', title: '📋 Đăng ký thi tay nghề', jp: '技能検定基礎級',
     text: 'Chị Yamada báo: thực tập sinh năm nhất phải thi 技能検定 基礎級 (lý thuyết + thực hành). Không đỗ thì không được gia hạn lên TTS số 2. Công ty đã đăng ký cho bạn — ngày thường đến chỗ làm trước 10:00 là thi được.',
     choices: [{ label: '「はい、頑張ります！」', fx: { rep: 1 } }],
@@ -242,7 +244,7 @@ export const EVENTS = [
     who: 'Chị Yamada (tổ trưởng)', title: '⏱️ Làm thêm giờ?', jp: '今日、残業できますか？',
     text: 'Có đơn hàng gấp, cần thêm người làm 2 tiếng nữa. Lương làm thêm cao hơn lương thường.',
     choices: [
-      { label: '「はい、できます！」', sub: '+3.600¥ lương · mệt hơn', minutes: 120, fx: { wage: 3600, energy: -18, full: -8, rep: 4 } },
+      { label: '「はい、できます！」', sub: 'Phụ cấp tăng ca 25% · mệt hơn', minutes: 120, fx: (S) => ({ wage: Math.round(JOBS[S.job].monthly * 0.04), energy: -18, full: -8, rep: 4 }) },
       { label: '「すみません、今日はちょっと…」', fx: { rep: -1 }, res: 'Chị Yamada gật đầu: 「分かりました」.' },
     ],
   },
@@ -307,12 +309,14 @@ export async function applyChoice(S, c, title) {
   if (typeof c.fx === 'function') fx = c.fx(S);
   if (c.chance && Math.random() < c.chance.p) { fx = c.chance.fx; res = c.chance.res; }
   if (typeof res === 'function') res = res(S);
+  setCat('event', title);
   if (c.minutes) advance(S, c.minutes);
   if (c.setTime && S.time < c.setTime) S.time = c.setTime;
   if (c.today) Object.assign(S.today, c.today);
   if (c.flag) S.flags[c.flag] = true;
   if (c.sick) S.sick = Math.max(S.sick, c.sick);
   const out = applyFx(S, fx);
+  clearCat();
   addLog(S, `${title}: ${c.label.replace(/<[^>]+>/g, '')}`);
   if (res || out.length) await modal({ title: res ? '' : 'Kết quả', text: res || '', html: chips(out) });
 }
