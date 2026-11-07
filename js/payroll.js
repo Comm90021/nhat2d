@@ -1,6 +1,6 @@
 // Lương tháng (給与明細): mỗi Chủ Nhật = cuối tháng. Số liệu gần thực tế, làm tròn.
 import { yen, seasonIdx, year, addLog } from './state.js';
-import { earn, pay } from './finance.js';
+import { deposit, bankPay } from './finance.js';
 import { JOBS } from './data.js';
 import { sfx } from './audio.js';
 
@@ -30,9 +30,10 @@ export function payslip(S) {
 
 export function payroll(S) {
   const P = payslip(S);
+  // lương chuyển khoản vào tài khoản; bảo hiểm, thuế bị khấu trừ; tiền nhà, điện nước trừ tự động từ tài khoản
   for (const [label, amt, cat] of P.rows) {
     if (!amt) continue;
-    if (amt > 0) earn(S, amt, cat, label); else pay(S, -amt, cat, label);
+    if (amt > 0) deposit(S, amt, cat, label); else bankPay(S, -amt, cat, label);
   }
   S.wage = 0;
   S.workDays = 0;

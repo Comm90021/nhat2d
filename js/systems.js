@@ -13,6 +13,7 @@ import { fixedEvent, markFixed, randomEvent, runEvent } from './events.js';
 import { invalidateMap } from './town.js';
 import { aiMorningMsgs, aiProactive } from './ai/proactive.js';
 import { ensureWorld } from './ai/world.js';
+import { bankMonthEnd } from './bank.js';
 
 // ---------- cuối ngày (trước khi sang ngày mới) ----------
 bus.on('day:end', 10, (S, ctx) => {
@@ -49,6 +50,7 @@ bus.on('day:start', 10, (S, ctx) => {
 
 // ---------- cuối tháng (Chủ Nhật) ----------
 bus.on('month:end', 10, (S, ctx) => { ctx.msgs.push(payroll(S)); }, 'lương tháng');
+bus.on('month:end', 15, (S, ctx) => { bankMonthEnd(S, ctx); }, 'ngân hàng, thị trường, trả góp');
 bus.on('month:end', 20, async (S, ctx) => {
   const fw = await familyWeekly(S);
   ctx.msgs.push(...fw.msgs);

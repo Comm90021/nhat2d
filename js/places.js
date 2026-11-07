@@ -8,7 +8,7 @@ import { modal, chips, toast } from './ui.js';
 import { sleep } from './days.js';
 import { workActions } from './work.js';
 import { sfx } from './audio.js';
-import { pay } from './finance.js';
+import { pay, assetEffect } from './finance.js';
 import { talkTo, peopleHere, atLeast, isAt, P, gain, personActions, PEOPLE } from './social.js';
 import { enterBuilding, exitBuilding, travelTo, curMap } from './town.js';
 import { npcsAt, stateOf } from './ai/sim.js';
@@ -78,8 +78,8 @@ const PLACES = {
     actions: (S) => {
       const half = S.time >= H(19);
       return [
-        { label: '🥬 Nguyên liệu nấu 1 bữa', cost: 320, minutes: 10, after: (s) => { s.inv.ingredients += 1; }, res: 'Đã mua rau, trứng, thịt gà. Về ký túc xá nấu nhé.' },
-        { label: '🛒 Nguyên liệu 3 bữa', sub: 'Tiết kiệm hơn', cost: 900, minutes: 15, after: (s) => { s.inv.ingredients += 3; }, res: 'Túi đồ đầy ắp. Về ký túc xá nấu dần.' },
+        { label: '🥬 Nguyên liệu nấu 1 bữa', cost: Math.round(320 * (1 - assetEffect(S, 'cook'))), minutes: 10, after: (s) => { s.inv.ingredients += 1; }, res: 'Đã mua rau, trứng, thịt gà. Về ký túc xá nấu nhé.' },
+        { label: '🛒 Nguyên liệu 3 bữa', sub: assetEffect(S, 'cook') ? 'Có nồi cơm + tủ lạnh: nấu nhiều, đỡ phí' : 'Tiết kiệm hơn', cost: Math.round(900 * (1 - assetEffect(S, 'cook'))), minutes: 15, after: (s) => { s.inv.ingredients += 3; }, res: 'Túi đồ đầy ắp. Về ký túc xá nấu dần.' },
         half
           ? buy('🍱 Bento dán tem 半額', 230, { full: 45, mood: 4 }, 'Mẹo của dân thực tập sinh: sau 19:00 nhiều siêu thị giảm nửa giá đồ ăn sắp hết hạn trong ngày!')
           : buy('🍱 Bento siêu thị', 460, { full: 45, mood: 1 }, 'Rẻ hơn konbini một chút.'),
@@ -114,7 +114,7 @@ const PLACES = {
   remit: {
     name: 'Tiệm chuyển tiền', jp: '海外送金',
     closed: (S) => (S.time < H(10) || S.time >= H(19) ? 'Tiệm mở cửa 10:00 – 19:00 hằng ngày.' : null),
-    desc: (S) => `Tỷ giá hôm nay: 1¥ = ${RATE}₫. Nợ còn: <b>${vnd(Math.max(0, S.debt))}</b>.`,
+    desc: (S) => `Tỷ giá tháng này: 1¥ = ${S.fin.fx}₫ (thay đổi mỗi tháng). Nợ còn: <b>${vnd(Math.max(0, S.debt))}</b>. Cũng có thể chuyển qua app ngân hàng trên điện thoại.`,
     actions: (S) => {
       const fee = atLeast(S, 'long', 2) ? 500 : 990;
       const a = [{ label: '💸 Gửi tiền về nhà', sub: `Công ty có giấy phép · phí ${fee}¥ · an toàn`, run: (s) => remit(s, false) }];
@@ -318,7 +318,7 @@ async function omikuji(S) {
 // ---------- chuyển tiền ----------
 async function remit(S, illegal) {
   const fee = illegal ? 0 : atLeast(S, 'long', 2) ? 500 : 990;
-  const rate = illegal ? 176 : RATE;
+  const rate = illegal ? S.fin.fx + 6 : S.fin.fx;
   const all = Math.floor((S.money - 5000 - fee) / 1000) * 1000;
   const amounts = [10000, 30000, 50000];
   const choices = amounts.map((v) => ({ label: `${yen(v)} → ${vnd(v * rate)}`, value: v, disabled: S.money < v + fee, reason: 'Không đủ tiền' }));

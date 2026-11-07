@@ -16,6 +16,7 @@ import { drawEmote, emoteFor, drawCloud } from '../anim.js';
 import { JOBS, LOOK } from '../data.js';
 import { canRegister } from '../exam.js';
 import { availableTest, testBlockReason, TESTS } from '../career.js';
+import { assetEffect } from '../finance.js';
 
 // ---------- bản đồ ----------
 const MAPS = {};
@@ -397,7 +398,7 @@ export const worldScene = {
     const a = player.pose ? { x: 0, y: 0 } : input.axis();
     moving = Math.abs(a.x) > 0.05 || Math.abs(a.y) > 0.05;
     if (moving) {
-      const sp = (M.outdoor ? 62 : 48) * (S.flags.bike && M.outdoor ? 1.55 : 1) * (S.energy < 15 ? 0.7 : 1);
+      const sp = (M.outdoor ? 62 * assetEffect(S, 'speed') : 48) * (S.energy < 15 ? 0.7 : 1);
       S.dir = Math.abs(a.x) > Math.abs(a.y) ? (a.x < 0 ? 'left' : 'right') : (a.y < 0 ? 'up' : 'down');
       const nx = S.pos.x + a.x * sp * dt;
       if (!blocked(M, nx, S.pos.y)) S.pos.x = nx;

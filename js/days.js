@@ -12,7 +12,7 @@ import { placePlayer } from './town.js';
 import { sfx } from './audio.js';
 import { bus } from './bus.js';
 import { isMonthEnd, holidayName } from './calendar.js';
-import { pay } from './finance.js';
+import { pay, assetEffect } from './finance.js';
 
 function rollWeather(S) {
   const si = seasonIdx(S), r = Math.random();
@@ -27,7 +27,7 @@ export async function sleep(S, opts = {}) {
   const mins = Math.max(60, MIDNIGHT + DAY_START - S.time);
   tickNeeds(S, mins, true);
   const hours = mins / 60;
-  S.energy = Math.min(energyCap(S), S.energy + hours * 13);
+  S.energy = Math.min(energyCap(S), S.energy + hours * 13 + assetEffect(S, 'sleep'));
   applyFx(S, hours >= 7 ? { health: 3, mood: 2 } : { health: -3, mood: -2 });
   if (opts.passedOut) applyFx(S, { health: -5, mood: -5 });
   await endDay(S);

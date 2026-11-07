@@ -4,6 +4,7 @@ import { sfx } from './audio.js';
 import { KIND } from './content/jlpt.js';
 import { pickQuestion, answer, progress, shuffleQ } from './learning.js';
 import { WORK_Q } from './content/work.js';
+import { assetEffect } from './finance.js';
 
 // Hỏi một câu. q: {q, opts[], a, ex, k?}. Trả về true nếu đúng.
 // opts.feedback: 'full' (hiện giải thích khi sai) | 'none' (thi: không cho biết đáp án)
@@ -36,7 +37,7 @@ export async function studyJapanese(S, n, o = {}) {
   for (let i = 0; i < n; i++) {
     const q = pickQuestion(S.lang);
     const right = await ask(q, { title: `${o.title || 'Câu'} ${i + 1}/${n}` });
-    const r = answer(S.lang, q, right, { mult: o.mult || 1 });
+    const r = answer(S.lang, q, right, { mult: (o.mult || 1) * assetEffect(S, 'study') });
     xp += r.gain;
     if (right) {
       ok++;
