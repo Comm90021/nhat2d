@@ -6,6 +6,7 @@ import { studyJapanese } from './quiz.js';
 import { EVENTS } from './events.js';
 import { SESSIONS, nextSessionText } from './exam.js';
 import { endText, availableTest, TESTS, visaInfo } from './career.js';
+import { romanceActions } from './romance.js';
 
 const APP_MAX = 5;
 
@@ -45,14 +46,17 @@ async function contacts(S, met) {
   if (!id) return;
   const p = P(S, id), d = PEOPLE[id];
   const evening = (S.time >= 17 * 60 && S.time < 22 * 60) || (dow(S) >= 5 && S.time >= 11 * 60 && S.time < 21 * 60);
+  const rom = romanceActions(S, id).filter((a) => !a.label.includes('Tỏ tình') || evening);
   const act = await modal({
     who: d.role, title: d.name, html: affBar(p.aff) + (d.perks[stageIdx(p.aff)] ? `<p class="dim">Quyền lợi hiện tại: ${esc(d.perks[stageIdx(p.aff)])}</p>` : ''),
     choices: [
       { label: '💌 Nhắn tin hỏi thăm', sub: '5 phút · mỗi người 1 lần/ngày', value: 'msg', disabled: p.msg === S.day, reason: 'Hôm nay nhắn rồi' },
       { label: '🍜 Gọi rủ đi ăn', sub: '¥2,000 · 2 tiếng', value: 'eat', disabled: stageIdx(p.aff) < 1 || !evening || S.money < 2000, reason: stageIdx(p.aff) < 1 ? 'Chưa đủ thân' : !evening ? 'Chỉ rủ được buổi tối hoặc cuối tuần' : 'Không đủ tiền' },
+      ...rom.map((a, k) => { const r = a.cond ? a.cond(S) : null; return { label: a.label, sub: a.sub, value: 'r' + k, disabled: !!r, reason: r }; }),
       { label: '← Quay lại', value: null, cancel: true },
     ],
   });
+  if (typeof act === 'string' && act[0] === 'r') { await rom[+act.slice(1)].run(S); return; }
   if (act === 'msg') {
     p.msg = S.day;
     advance(S, 5);

@@ -10,6 +10,9 @@ import { workActions } from './work.js';
 import { sfx } from './audio.js';
 import { talkTo, peopleHere, atLeast, AVAIL, P, gain, personActions, PEOPLE } from './social.js';
 import { community } from './community.js';
+import { fam, famGain, canVisitHome, visitHome } from './family.js';
+import { canSpouseVisa } from './romance.js';
+import { setVisa } from './career.js';
 
 const H = (h, m = 0) => h * 60 + m;
 const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -35,11 +38,13 @@ const PLACES = {
       { label: '🍳 Nấu ăn', sub: `Còn ${S.inv.ingredients} phần nguyên liệu`, minutes: 40, fx: { full: 45, mood: 4, health: 1 }, cond: (s) => (s.inv.ingredients > 0 ? null : 'Hết nguyên liệu — mua ở siêu thị'), after: (s) => { s.inv.ingredients--; }, res: '「いただきます！」 Cơm nhà tự nấu vừa rẻ vừa ngon.' },
       {
         label: '📱 Gọi video về nhà', minutes: 30, fx: { mood: 10 }, cond: (s) => (s.today.call ? 'Hôm nay đã gọi rồi' : null),
-        after: (s) => { s.today.call = true; if (s.time >= H(22) && Math.random() < 0.5) s.flags.lateCall = true; },
+        after: (s) => { s.today.call = true; fam(s).lastCall = s.day; famGain(s, 3); if (s.time >= H(22) && Math.random() < 0.5) s.flags.lateCall = true; },
         res: (s) => (s.time >= H(22) ? 'Nói chuyện vui quá, quên mất đã khuya. Tường ký túc xá mỏng lắm…' : 'Mẹ hỏi ăn uống thế nào, bố dặn giữ sức khỏe. Bạn thấy nhẹ lòng hơn.'),
       },
       { label: '📖 Tự học tiếng Nhật', sub: '3 câu hỏi · 60 phút', minutes: 60, energy: 10, run: selfStudy },
       ...(atLeast(S, 'ha', 2) && AVAIL.ha(S) ? [{ label: '🍲 Nấu ăn chung với Hà', sub: 'Không cần nguyên liệu', minutes: 60, fx: { full: 45, mood: 6, health: 1 }, cond: (s) => (s.today.cookHa ? 'Hôm nay đã nấu rồi' : null), after: (s) => { s.today.cookHa = true; gain(s, 'ha', 2); }, res: 'Hà nấu canh chua, bạn rán cá. Bữa cơm có mùi quê nhà.' }] : []),
+      ...(canVisitHome(S) ? [{ label: '✈️ Xin nghỉ phép về thăm nhà', sub: 'Dịp Tết / hè · 4 ngày', run: async (s) => { if (await visitHome(s)) return 'leave'; } }] : []),
+      ...(canSpouseVisa(S) ? [{ label: '📄 Đổi sang visa vợ/chồng người Nhật', sub: 'Đã kết hôn với người Nhật', run: async (s) => { setVisa(s, 'spouse', 3); await modal({ who: 'Cục Quản lý Xuất nhập cảnh', title: '🛂 Visa vợ/chồng người Nhật', text: 'Hồ sơ được chấp thuận. Visa này không giới hạn ngành nghề, gia hạn 1–3 năm một lần, và sau 3 năm kết hôn có thể xin thường trú.' }); } }] : []),
       ...(['ssw2', 'spouse'].includes(S.career.visa) ? [{ label: '📄 Nộp hồ sơ xin thường trú (永住)', sub: 'Lệ phí ¥10,000 · xét điều kiện', run: applyPR }] : []),
       { label: '📝 Đăng ký thi JLPT qua mạng', sub: canRegister(S) ? 'Đang mở đăng ký · lệ phí ¥7,500' : nextSessionText(S), cond: (s) => (canRegister(s) ? null : 'Chưa tới đợt đăng ký'), run: register },
     ],
@@ -273,6 +278,8 @@ async function remit(S, illegal) {
   const before = S.debt;
   S.debt -= money;
   S.stats.sentVnd += money;
+  fam(S).lastRemit = S.day;
+  famGain(S, Math.min(15, Math.round(v / 4000)));
   const out = applyFx(S, { mood: 5 });
   out.unshift(['money', -(v + fee)]);
   addLog(S, `Gửi về ${vnd(money)}`);

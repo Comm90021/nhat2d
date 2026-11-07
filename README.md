@@ -1,11 +1,13 @@
 # Nhật Ký TTS 2D 🗾
 
-Game mô phỏng 2D chạy trên trình duyệt: một năm làm thực tập sinh (TTS) ở thị trấn Hikari, Nhật Bản.
+Game mô phỏng 2D chạy trên trình duyệt: cuộc sống của một thực tập sinh (TTS) người Việt ở thị trấn Hikari, Nhật Bản — **không giới hạn thời gian**, ở bao lâu là tùy bạn.
 
-- 3 nghề, mỗi nghề có một mini-game riêng: 🍙 kiểm tra cơm nắm, 🍓 hái dâu tây, 🏗️ dựng giàn giáo
-- Đi làm trước 08:00, lĩnh lương Chủ Nhật, chuyển tiền về trả nợ 40 triệu đồng
-- Ăn uống, ngủ nghỉ, ốm đau; học tiếng Nhật ở lớp tối hoặc với bà Sato hàng xóm
-- Bốn mùa (hoa anh đào, mùa mưa, lá đỏ, tuyết), ngày và đêm, sự kiện: hanami, lễ hội mùa hè, động đất, bão, thi JLPT…
+- **Ca làm việc** là câu hỏi tình huống theo nghề (an toàn, quy trình, 報連相…). Mini-game (🍙 cơm nắm, 🍓 dâu tây, 🏗️ giàn giáo) bật được trong menu.
+- **Tiếng Nhật N5 → N1** theo năng lực thật: trả lời đúng liên tục được nhân điểm, câu sai được hỏi lại. Muốn có **chứng chỉ JLPT** phải đăng ký và đi thi (tháng 7, tháng 12).
+- **Lộ trình visa**: TTS số 1 → thi tay nghề 基礎級 → TTS số 2 → TTS số 3 / Kỹ năng đặc định số 1 → số 2 → thường trú. Hết hạn mà không đủ điều kiện là phải về nước.
+- **Quan hệ**: 10 nhân vật (đồng nghiệp, hàng xóm, cộng đồng Việt, giao lưu quốc tế, CLB bóng đá) với mức thân thiết và quyền lợi riêng; cả những cám dỗ như vay nóng, đa cấp, môi giới làm chui.
+- **Tình cảm & gia đình**: hẹn hò, cầu hôn, ra mắt gia đình, kết hôn, sinh con (visa quyết định con được ở Nhật hay phải về quê), áp lực gia đình, về thăm nhà dịp Tết.
+- Trả nợ 40 triệu đồng, ăn uống, ốm đau, bốn mùa, ngày đêm, sự kiện: hanami, lễ hội mùa hè, động đất, bão…
 - Chơi được trên máy tính (WASD / mũi tên + E) và điện thoại (cần điều khiển cảm ứng)
 
 Toàn bộ hình ảnh được vẽ bằng code (pixel art), âm thanh tạo bằng WebAudio. Không cần file ảnh hay nhạc, không có bước build.

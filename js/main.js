@@ -6,6 +6,8 @@ import { nextSessionText } from './exam.js';
 import { journeyHtml } from './career.js';
 import { openPhone } from './phone.js';
 import { PEOPLE, stageName } from './social.js';
+import { loveHtml } from './romance.js';
+import { familyHtml } from './family.js';
 import { JOBS, LOOK } from './data.js';
 import { input, initInput } from './input.js';
 import { modal, showHud, updateHud, toast, modalOpen, esc } from './ui.js';
@@ -56,7 +58,7 @@ function showTitle() {
 G.onEnd = showTitle;
 
 // ---------- tạo nhân vật ----------
-const draft = { name: '', gender: 'm', look: { hair: LOOK.hair[0], shirt: LOOK.shirt[1], pants: LOOK.pants[0], skin: LOOK.skin[1] } };
+const draft = { name: '', gender: 'm', pref: 'f', look: { hair: LOOK.hair[0], shirt: LOOK.shirt[1], pants: LOOK.pants[0], skin: LOOK.skin[1] } };
 function swatches(id, key) {
   const box = $(id);
   box.innerHTML = LOOK[key].map((c) => `<button type="button" class="sw" style="--c:${c}" data-c="${c}" aria-label="${c}" aria-pressed="${draft.look[key] === c}"></button>`).join('');
@@ -90,18 +92,24 @@ function creator() {
     swatches('sw-hair', 'hair'); swatches('sw-shirt', 'shirt'); swatches('sw-pants', 'pants'); swatches('sw-skin', 'skin');
     const seg = $('seg-gender');
     seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.g === draft.gender ? 'true' : 'false'));
+    const pref = $('seg-pref');
+    const syncPref = () => pref.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x.dataset.g === draft.pref ? 'true' : 'false'));
+    syncPref();
     seg.onclick = (e) => {
       const b = e.target.closest('button');
       if (!b) return;
       draft.gender = b.dataset.g;
+      draft.pref = draft.gender === 'm' ? 'f' : 'm';
+      syncPref();
       seg.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
     };
+    pref.onclick = (e) => { const b = e.target.closest('button'); if (!b) return; draft.pref = b.dataset.g; syncPref(); };
     $('cr-back').onclick = () => resolve(null);
     $('cr-next').onclick = () => {
       const name = $('in-name').value.trim();
       if (!name) { $('in-name').focus(); toast('Hãy nhập tên nhân vật'); return; }
       draft.name = name.slice(0, 16);
-      resolve({ name: draft.name, gender: draft.gender, look: { ...draft.look } });
+      resolve({ name: draft.name, gender: draft.gender, pref: draft.pref, look: { ...draft.look } });
     };
   });
 }
@@ -111,7 +119,7 @@ async function newGame() {
   if (!d) return showTitle();
   const job = await modal({
     who: 'Chọn nghề', title: '🧰 Bạn sang Nhật làm nghề gì?', wide: true,
-    text: 'Mỗi nghề có một mini-game riêng khi vào ca.',
+    text: 'Mỗi nghề có bộ câu hỏi tình huống và mini-game riêng.',
     choices: [
       ...Object.values(JOBS).map((j) => ({ label: `${j.icon} ${j.name} · ${j.jp}`, sub: `${j.desc} Lương cơ bản ${yen(j.pay)}/ca.`, value: j.id })),
       { label: '← Sửa nhân vật', value: null, cancel: true },
@@ -120,6 +128,7 @@ async function newGame() {
   if (!job) return newGame();
   clearSave();
   G.S = newState({ ...d, job });
+  G.S.pref = d.pref;
   placePlayer('dorm');
   startPlaying();
   await runFlow(intro);
@@ -180,6 +189,7 @@ function bookHtml(S) {
   const log = S.log.slice(0, 10).map((l) => `<li><span class="dim">Ngày ${l.d}:</span> ${esc(l.t)}</li>`).join('');
   return `<div class="payslip">${row('💴 Tiền mặt', yen(S.money))}${row('🧾 Lương chờ lĩnh', yen(S.wage))}${row('🏦 Nợ ở quê', vnd(Math.max(0, S.debt)))}${row('💸 Đã gửi về', vnd(S.stats.sentVnd))}${row('📅 Thời gian ở Nhật', `Năm ${year(S)} · ${S.day} ngày`)}${st}${row('👵 Câu bà Sato đã dạy', S.learned.length)}${row('🏭 Ca đã làm / đi muộn / nghỉ', `${S.stats.shifts} / ${S.stats.lates} / ${S.stats.absences}`)}</div>
     <h3>🛂 Visa & nghề nghiệp</h3>${journeyHtml(S)}
+    <h3>🏡 Gia đình & tình cảm</h3>${familyHtml(S)}${loveHtml(S)}
     <h3>💞 Mối quan hệ</h3><div class="payslip">${Object.keys(PEOPLE).filter((id) => S.people && S.people[id] && S.people[id].met).map((id) => `<div class="prow"><span>${esc(PEOPLE[id].name)}</span><span>${stageName(S.people[id].aff)} · ${Math.round(S.people[id].aff)}</span></div>`).join('') || '<div class="dim">Chưa quen ai — mở 📱 → "Ai ở đâu?"</div>'}</div>
     <h3>🗣️ Tiếng Nhật — trình độ ${jpLevel(S)}${bestCert(S) ? ` · chứng chỉ ${bestCert(S)}` : ''}</h3>
     <div class="payslip">${levelStats(S.lang).map((l) => `<div class="prow"><span>${l.reached ? '✅' : '⬜'} ${l.lv}</span><span>${Math.min(100, Math.round((l.xp / l.need) * 100))}% · chính xác ${Math.round(l.acc * 100)}%</span></div>`).join('')}

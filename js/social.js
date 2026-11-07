@@ -8,6 +8,8 @@ import { ask } from './quiz.js';
 import { sfx } from './audio.js';
 
 export { PEOPLE };
+// Cho phép module khác (romance.js) gắn thêm lựa chọn vào menu từng người
+export const hooks = { extra: null };
 export function P(S, id) {
   S.people = S.people || {};
   if (!S.people[id]) S.people[id] = { aff: 0, met: false, last: 0, talked: 0 };
@@ -127,6 +129,7 @@ export function personActions(S, id) {
   const a = [{ label: `💬 Nói chuyện với ${d.name}`, sub: p.met ? `${stageName(p.aff)} · ${Math.round(p.aff)}/100` : esc(d.role), minutes: 15, cond: (s) => (P(s, id).talked === s.day ? 'Hôm nay đã nói chuyện rồi' : null), run: (s) => talkTo(s, id) }];
   if (p.met) a.push({ label: `🎁 Tặng quà ${d.name}`, run: (s) => giveGift(s, id) });
   if (p.met && stageIdx(p.aff) >= 1) a.push({ label: `🍜 Rủ ${d.name} đi ăn`, sub: '¥2,000 · 2 tiếng', cost: 0, minutes: 120, cond: (s) => (s.money < 2000 ? 'Không đủ tiền' : null), run: (s) => invite(s, id) });
+  if (hooks.extra) a.push(...hooks.extra(S, id));
   return a;
 }
 

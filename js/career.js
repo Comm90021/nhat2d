@@ -38,7 +38,7 @@ export function skillRank(S) {
 }
 export const payMul = (S) => visaInfo(S).pay * (1 + Math.min(0.15, ((S.skill && S.skill[S.job]) || 0) / 1200)) * (S.flags.betterJob ? 1.1 : 1);
 
-function setVisa(S, visa, years) {
+export function setVisa(S, visa, years) {
   const C = S.career;
   C.visa = visa;
   C.start = S.day;

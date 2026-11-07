@@ -7,6 +7,8 @@ import { examMorning } from './exam.js';
 import { careerMorning, visaInfo } from './career.js';
 import { socialDaily, atLeast } from './social.js';
 import { loanCheck } from './community.js';
+import { familyWeekly, runFamilyEvent, fam, famText } from './family.js';
+import { romanceDaily, partner, isMarried } from './romance.js';
 import { levelIndex } from './learning.js';
 import { modal, chips, esc } from './ui.js';
 import { fixedEvent, markFixed, randomEvent, runEvent } from './events.js';
@@ -65,10 +67,11 @@ async function endDay(S) {
     msgs.unshift(`🗓️ Sang mùa ${SEASONS[seasonIdx(S)].name} ${SEASONS[seasonIdx(S)].jp}!`);
   }
   if (doy(S) === 1) { msgs.unshift(`🎊 Bắt đầu năm thứ <b>${year(S)}</b> của bạn ở Nhật!`); addLog(S, `Bắt đầu năm thứ ${year(S)}`); }
-  if (dow(S) === 6) msgs.push(payday(S));
+  let famEvent = null;
+  if (dow(S) === 6) { msgs.push(payday(S)); const fw = await familyWeekly(S); msgs.push(...fw.msgs); famEvent = fw.event; }
   placePlayer('dorm');
   save();
-  await morning(S, msgs);
+  await morning(S, msgs, famEvent);
 }
 
 function payday(S) {
@@ -86,7 +89,7 @@ function payday(S) {
   return html;
 }
 
-async function morning(S, msgs) {
+async function morning(S, msgs, famEvent) {
   const html = msgs.length ? `<div class="msgs">${msgs.map((m) => (m.startsWith('<') ? m : `<p>${m}</p>`)).join('')}</div>` : '';
   const work = isWorkday(S) ? '🏭 Ngày làm việc — có mặt trước 08:00.' : dow(S) === 5 ? '⏱️ Thứ Bảy — có thể làm thêm buổi sáng.' : '🌿 Chủ Nhật — ngày nghỉ.';
   await modal({
@@ -99,6 +102,8 @@ async function morning(S, msgs) {
   const cr = await careerMorning(S);
   if (cr) return ending(S, cr === 'ending-home' ? 'home' : 'visa');
   await loanCheck(S);
+  await romanceDaily(S);
+  if (famEvent) { await runFamilyEvent(S, famEvent); save(); return; }
   if (await examMorning(S)) { save(); return; }
   const fixed = fixedEvent(S, 'morning');
   if (fixed) { markFixed(S, fixed); await runEvent(fixed); }
@@ -144,7 +149,7 @@ export async function critical(S) {
 export async function ending(S, kind) {
   const paid = Math.max(0, START_DEBT - Math.max(0, S.debt));
   const ratio = paid / START_DEBT;
-  const score = Math.round(40 * Math.min(1, ratio) + 20 * (levelIndex(S.lang) / 5) + 15 * S.rep / 100 + 10 * S.health / 100 + 15 * S.mood / 100);
+  const score = Math.round(35 * Math.min(1, ratio) + 20 * (levelIndex(S.lang) / 5) + 10 * S.rep / 100 + 10 * S.health / 100 + 13 * S.mood / 100 + 12 * fam(S).sat / 100);
   const yrs = year(S);
   let title, text;
   if (kind === 'fired') {
@@ -171,6 +176,8 @@ export async function ending(S, kind) {
     <div class="prow"><span>Đã gửi về trả nợ</span><span>${vnd(S.stats.sentVnd)}</span></div>
     <div class="prow"><span>Nợ còn lại</span><span>${vnd(Math.max(0, S.debt))}</span></div>
     <div class="prow"><span>Tiền mặt còn lại</span><span>${yen(S.money)}</span></div>
+    <div class="prow"><span>Gia đình ở quê</span><span>${famText(fam(S).sat)}</span></div>
+    <div class="prow"><span>Bạn đời / con cái</span><span>${S.love && isMarried(S) ? 'Kết hôn với ' + partner(S).name : S.love ? 'Đang yêu ' + partner(S).name : 'Độc thân'}${(S.kids || []).length ? ' · ' + S.kids.length + ' con' : ''}</span></div>
     <div class="prow"><span>Thời gian ở Nhật</span><span>${yrs} năm (${S.day} ngày)</span></div>
     <div class="prow"><span>Tiếng Nhật</span><span>${jpLevel(S)}${bestCert(S) ? ' · chứng chỉ JLPT ' + bestCert(S) : ' · chưa có chứng chỉ'}</span></div>
     <div class="prow"><span>Số ca đã làm / nghỉ không phép</span><span>${S.stats.shifts} / ${S.stats.absences}</span></div>
