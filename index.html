@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Nhật Ký TTS 2D</title>
+<meta name="description" content="Game mô phỏng 2D miễn phí trên trình duyệt: một năm làm thực tập sinh ở Nhật Bản.">
+<meta name="theme-color" content="#141a2e">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗾</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;800;900&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="game" aria-label="Thị trấn Hikari"></canvas>
+
+  <div id="hud" hidden>
+    <div class="hud-row">
+      <div class="panel date">
+        <b id="h-day">Ngày 1/56</b>
+        <span id="h-dow">Thứ Hai · Xuân</span>
+        <span class="clock" id="h-clock">06:30</span>
+      </div>
+      <div class="panel money">
+        <b id="h-yen">¥30,000</b>
+        <span id="h-debt">Nợ</span>
+        <span id="h-extra"></span>
+      </div>
+      <div class="hud-btns">
+        <button type="button" id="btn-book" aria-label="Sổ tay">📒</button>
+        <button type="button" id="btn-menu" aria-label="Tạm dừng">⏸</button>
+      </div>
+    </div>
+    <div class="panel bars">
+      <div class="bar" title="Sức khỏe"><i>❤️</i><span><em id="bar-health" style="--c:#ff6b6b"></em></span></div>
+      <div class="bar" title="Năng lượng"><i>⚡</i><span><em id="bar-energy" style="--c:#ffd166"></em></span></div>
+      <div class="bar" title="No bụng"><i>🍙</i><span><em id="bar-full" style="--c:#7bd389"></em></span></div>
+      <div class="bar" title="Tinh thần"><i>🙂</i><span><em id="bar-mood" style="--c:#74b9ff"></em></span></div>
+    </div>
+  </div>
+  <div id="hint" hidden></div>
+
+  <div id="joy"><div id="joy-knob"></div></div>
+  <button type="button" id="btn-act" hidden aria-label="Tương tác">🚪</button>
+
+  <section id="screen-title" class="screen">
+    <div class="title-card">
+      <div class="jp-big">日本日記</div>
+      <h1>Nhật Ký TTS <span>2D</span></h1>
+      <p class="sub">Một năm làm thực tập sinh ở Nhật Bản — đi làm, trả nợ, học tiếng Nhật, đón bốn mùa.</p>
+      <div class="col">
+        <button type="button" class="go" id="btn-new">▶ Bắt đầu mới</button>
+        <button type="button" class="ghost" id="btn-continue" hidden>⏯ Chơi tiếp</button>
+        <button type="button" class="ghost" id="btn-help">🎮 Hướng dẫn</button>
+      </div>
+      <p class="fine">Game chạy hoàn toàn trên trình duyệt · lưu tự động trên máy bạn · không thu thập dữ liệu.</p>
+    </div>
+  </section>
+
+  <section id="screen-create" class="screen" hidden>
+    <div class="sheet">
+      <h2>Tạo nhân vật <span class="jp">キャラ作成</span></h2>
+      <div class="create-grid">
+        <canvas id="preview" width="120" height="125" aria-label="Xem trước nhân vật"></canvas>
+        <div class="fields">
+          <label for="in-name">Tên của bạn</label>
+          <input id="in-name" maxlength="16" placeholder="Ví dụ: Minh" autocomplete="off">
+          <span class="lbl">Giới tính</span>
+          <div class="seg" id="seg-gender"><button type="button" data-g="m">Nam</button><button type="button" data-g="f">Nữ</button></div>
+        </div>
+      </div>
+      <span class="lbl">Màu tóc</span><div class="sws" id="sw-hair"></div>
+      <span class="lbl">Màu áo</span><div class="sws" id="sw-shirt"></div>
+      <span class="lbl">Màu quần</span><div class="sws" id="sw-pants"></div>
+      <span class="lbl">Màu da</span><div class="sws" id="sw-skin"></div>
+      <div class="two">
+        <button type="button" class="ghost" id="cr-back">← Quay lại</button>
+        <button type="button" class="go" id="cr-next">Tiếp: Chọn nghề →</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="modal" hidden><div class="card" id="card"></div></div>
+  <div id="toast" hidden></div>
+  <div id="err" hidden></div>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
