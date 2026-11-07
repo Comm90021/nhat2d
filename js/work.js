@@ -1,5 +1,7 @@
 // Ca làm việc: chào quản lý → (an toàn) → mini-game → phiếu kết quả → sự kiện sau ca.
 import { G, applyFx, seasonIdx, clockStr, yen, addLog, isWorkday } from './state.js';
+import { holidayName, isHolidayShift } from './calendar.js';
+import { PEOPLE } from './ai/world.js';
 import { JOBS } from './data.js';
 import { modal, multi, chips } from './ui.js';
 import { runScene } from './engine.js';
@@ -28,10 +30,20 @@ import { atLeast, anyAtLeast } from './social.js';
 
 const SCENES = { factory: factoryScene, farm: farmScene, build: buildScene };
 
+// Người quản lý ca: ở chỗ làm gốc là chị Yamada, ở công ty mới là quản lý NPC của nơi đó
+export function bossOf(S) {
+  const co = (S.emp && S.emp.co) || 'work';
+  if (co === 'work') return { name: 'Chị Yamada', who: 'Chị Yamada · tổ trưởng' };
+  const id = Object.keys(PEOPLE).find((k) => PEOPLE[k].job && PEOPLE[k].job.place === co && PEOPLE[k].job.boss);
+  const n = id ? PEOPLE[id].name : 'Quản lý';
+  return { id, name: n, who: `${n} · quản lý` };
+}
+
 async function greet(S, late) {
+  const B = bossOf(S);
   if (late) {
     const v = await modal({
-      who: 'Chị Yamada · tổ trưởng', title: '⏰ Bạn đến muộn!', jp: '遅刻ですよ。',
+      who: B.who, title: '⏰ Bạn đến muộn!', jp: '遅刻ですよ。',
       text: `Đã ${clockStr(S.time)} rồi. Mọi người bắt đầu từ 08:00.`,
       choices: [
         { label: '「遅刻して申し訳ありません！」', sub: 'Xin lỗi nghiêm túc', value: 0 },
@@ -40,13 +52,14 @@ async function greet(S, late) {
     });
     const out = applyFx(S, v === 0 ? { rep: -3, jp: 0.5 } : { rep: -7 });
     S.stats.lates++;
-    await modal({ text: v === 0 ? 'Chị Yamada gật đầu: 「次から気をつけてね」 (Lần sau chú ý nhé).' : 'Chị Yamada thở dài. Ở Nhật, đi muộn thì xin lỗi trước, đừng viện cớ.', html: chips(out) });
+    await modal({ text: v === 0 ? `${B.name} gật đầu: 「次から気をつけてね」 (Lần sau chú ý nhé).` : `${B.name} thở dài. Ở Nhật, đi muộn thì xin lỗi trước, đừng viện cớ.`, html: chips(out) });
     return;
   }
   const job = JOBS[S.job];
+  const hol = holidayName(S);
   const v = await modal({
-    who: 'Chị Yamada · tổ trưởng', title: '🌅 Đầu ca làm', jp: 'おはようございます。今日もよろしく。',
-    text: `<b>Mẹo hôm nay:</b> ${job.tip}`,
+    who: B.who, title: hol ? `🎌 Ca ngày lễ (${hol})` : '🌅 Đầu ca làm', jp: 'おはようございます。今日もよろしく。',
+    text: `${hol ? 'Hôm nay ngày lễ, nơi này vẫn mở cửa — ca này có <b>phụ cấp ngày lễ +35%</b>.<br>' : ''}<b>Mẹo hôm nay:</b> ${job.tip}`,
     choices: [
       { label: '「おはようございます！よろしくお願いします！」', value: 0 },
       { label: '(Gật đầu chào)', value: 1 },
@@ -93,7 +106,7 @@ export async function startShift(S, overtime) {
   if (S.job === 'factory' && !S.today.washed) warn.push('chưa rửa tay, sát khuẩn trước khi vào dây chuyền');
   if (warn.length) {
     const out = applyFx(S, { rep: -2 * warn.length });
-    await modal({ who: 'Tổ trưởng Yamada', title: '⚠️ Nhắc nhở', jp: 'ちゃんと準備してください', text: `Bạn ${warn.join(' và ')}. Lần sau nhớ chuẩn bị trước khi vào ca (bấm vào tủ đồ / bồn rửa tay trong xưởng).`, html: chips(out) });
+    await modal({ who: bossOf(S).who, title: '⚠️ Nhắc nhở', jp: 'ちゃんと準備してください', text: `Bạn ${warn.join(' và ')}. Lần sau nhớ chuẩn bị trước khi vào ca (bấm vào tủ đồ / bồn rửa tay trong xưởng).`, html: chips(out) });
     S.today.uniform = true; S.today.washed = true;
   }
   if (S.job === 'build') await safety(S);
@@ -114,7 +127,7 @@ export async function startShift(S, overtime) {
   }
   player.pose = null;
   const base = overtime ? shiftRate(S) * 0.5 * 1.25 : shiftRate(S);
-  const pay = Math.round((base * (0.95 + 0.1 * score) * (1 + certBonus(S)) * payMul(S)) / 10) * 10;
+  const pay = Math.round((base * (0.95 + 0.1 * score) * (1 + certBonus(S)) * payMul(S) * (isHolidayShift(S) ? 1.35 : 1)) / 10) * 10;
   if (!overtime) S.workDays = (S.workDays || 0) + 1;
   const k = overtime ? 0.55 : 1;
   S.time = Math.max(S.time + 60, overtime ? 13 * 60 : 17 * 60);
@@ -157,9 +170,6 @@ export function workActions(S) {
   a.push({ label: S.job === 'build' ? '⛑️ Thay đồ: lấy mũ bảo hộ, đai an toàn' : '👕 Thay đồng phục', sub: S.today.uniform ? 'Đã chuẩn bị' : 'Nên làm trước khi vào ca', minutes: 5, cond: (s) => (s.today.uniform ? 'Đã thay rồi' : null), after: (s) => { s.today.uniform = true; }, res: S.job === 'build' ? 'Mũ cài quai, đai móc chắc. 「ヨシ！」' : 'Mũ trùm tóc, áo trắng, ủng. Lăn bụi quần áo xong.' });
   if (S.job === 'factory') a.push({ label: '🧼 Rửa tay, sát khuẩn', minutes: 3, cond: (s) => (s.today.washed ? 'Đã rửa rồi' : null), after: (s) => { s.today.washed = true; }, res: 'Rửa tay 30 giây, sát khuẩn cồn. Vệ sinh là trên hết (衛生第一).' });
   a.push({ label: '📋 Xem bảng thông báo', minutes: 3, res: (s) => `Chỉ tiêu tháng: không tai nạn, tỉ lệ lỗi dưới 1%.<br>Ca làm: 08:00 – 17:00, nghỉ trưa 12:00.<br>Ngày công tháng này: <b>${s.workDays || 0}</b>.<br>${S.job === 'build' ? 'KY: hôm nay gió mạnh — chú ý vật rơi từ trên cao.' : 'Nhắc nhở: báo cáo ngay mọi sự cố nhỏ (報連相).'}` });
-  if (visaInfo(S).change && !S.flags.betterJob && anyAtLeast(S, ['kimura', 'mai', 'daiki', 'long'], 3)) {
-    a.push({ label: '🔁 Chuyển sang chỗ làm mới (lương +10%)', sub: 'Bạn thân giới thiệu · visa của bạn được phép đổi chỗ làm cùng ngành', run: async (s) => { s.flags.betterJob = true; addLog(s, 'Chuyển sang chỗ làm mới nhờ người quen giới thiệu'); await modal({ title: '🔁 Chỗ làm mới', text: 'Nhờ người quen giới thiệu, bạn chuyển sang một công ty cùng ngành trả lương cao hơn 10%, chế độ tốt hơn. Mối quan hệ chính là tài sản!' }); } });
-  }
   if (S.today.noWork) a.push({ label: '🚫 Hôm nay bạn được nghỉ', cond: () => 'Bão hoặc ngày đi thi' });
   else if (S.worked) a.push({ label: '✅ Đã xong ca hôm nay', cond: () => 'Mai quay lại nhé' });
   else if (isWorkday(S)) {
@@ -188,6 +198,7 @@ export function workActions(S) {
       cond: (s) => (s.time > 9 * 60 ? 'Phải đến trước 09:00' : null),
       run: (s) => startShift(s, true),
     });
-  } else a.push({ label: '😴 Chủ Nhật — công ty nghỉ', cond: () => 'Nghỉ ngơi đi!' });
+  } else if (holidayName(S)) a.push({ label: `🎌 ${holidayName(S)} — công ty nghỉ`, cond: () => 'Ngày lễ, nghỉ ngơi hoặc đi chơi đi!' });
+  else a.push({ label: '😴 Chủ Nhật — công ty nghỉ', cond: () => 'Nghỉ ngơi đi!' });
   return a;
 }

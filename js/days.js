@@ -60,7 +60,7 @@ async function morning(S, ctx) {
   const msgs = ctx.msgs;
   const html = msgs.length ? `<div class="msgs">${msgs.map((m) => (m.startsWith('<') ? m : `<p>${m}</p>`)).join('')}</div>` : '';
   const hol = holidayName(S);
-  const work = hol ? `🎌 ${hol} — công ty nghỉ.` : isWorkday(S) ? '🏭 Ngày làm việc — có mặt trước 08:00.' : dow(S) === 5 ? '⏱️ Thứ Bảy — có thể làm thêm buổi sáng.' : '🌿 Chủ Nhật — cuối tháng, ngày lĩnh lương.';
+  const work = hol && isWorkday(S) ? `🎌 ${hol} — chỗ làm của bạn vẫn mở cửa (phụ cấp ngày lễ +35%).` : hol ? `🎌 ${hol} — công ty nghỉ.` : isWorkday(S) ? '🏭 Ngày làm việc — có mặt trước 08:00.' : dow(S) === 5 ? '⏱️ Thứ Bảy — có thể làm thêm buổi sáng.' : '🌿 Chủ Nhật — cuối tháng, ngày lĩnh lương.';
   await modal({
     who: `Năm ${year(S)} · Tháng ${month(S)} · ngày thứ ${S.day} ở Nhật`,
     title: `${DOW[dow(S)]} · Mùa ${SEASONS[seasonIdx(S)].name}`,

@@ -21,7 +21,12 @@ export const HOLIDAYS = {
   62: 'Nghỉ Tết dương lịch', 63: 'Nghỉ Tết dương lịch', 64: 'Nghỉ Tết dương lịch', 65: 'Nghỉ Tết dương lịch',
 };
 export const holidayName = (S) => HOLIDAYS[doy(S)] || null;
-export const isWorkday = (S) => dow(S) < 5 && !HOLIDAYS[doy(S)];
+// Nơi vẫn mở cửa ngày lễ (dịch vụ, chăm sóc, kho vận); nhà máy, văn phòng, công trường thì nghỉ
+export const HOLIDAY_OPEN = new Set(['care', 'konbini', 'super', 'ramen', 'teishoku', 'remit', 'logistics']);
+export const placeOpenOnHoliday = (place) => HOLIDAY_OPEN.has(place);
+// Ngày làm việc của người chơi: Thứ Hai–Sáu; ngày lễ chỉ đi làm nếu chỗ làm mở cửa ngày lễ (có phụ cấp)
+export const isHolidayShift = (S) => dow(S) < 5 && !!HOLIDAYS[doy(S)] && !!(S.emp && placeOpenOnHoliday(S.emp.co));
+export const isWorkday = (S) => dow(S) < 5 && (!HOLIDAYS[doy(S)] || isHolidayShift(S));
 
 // Quy đổi lịch cũ 56 ngày/năm → 84 ngày/năm
 export const scaleDay = (d) => (typeof d === 'number' && d > 0 ? Math.max(1, Math.round(d * 1.5)) : d);

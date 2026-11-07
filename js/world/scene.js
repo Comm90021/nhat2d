@@ -3,7 +3,7 @@
 import { G, seasonIdx, tickNeeds, TIME_RATE, isWorkday, dow, MIDNIGHT, isNewYear } from '../state.js';
 import { input } from '../input.js';
 import { TS, hash2, rect, pick, text, pill, drawPerson, drawCat, drawCar } from '../pixel.js';
-import { buildTown, buildIndustrial, renderStatic, entrance } from './maps.js';
+import { buildTown, buildIndustrial, buildResidential, renderStatic, entrance } from './maps.js';
 import { buildInterior, renderInterior } from './interior.js';
 import { drawObjectAnim } from './objects.js';
 import { findPath } from './path.js';
@@ -18,6 +18,7 @@ import { canRegister } from '../exam.js';
 import { availableTest, testBlockReason, TESTS } from '../career.js';
 import { assetEffect } from '../finance.js';
 import { myPlace, workName } from '../jobs.js';
+import { homesVer, unitLabel } from '../homes.js';
 
 // ---------- bản đồ ----------
 const MAPS = {};
@@ -25,7 +26,11 @@ export function getMap(id) {
   if (!MAPS[id]) {
     if (id === 'town') MAPS[id] = buildTown();
     else if (id === 'minato') MAPS[id] = buildIndustrial();
-    else if (id.startsWith('int:')) MAPS[id] = buildInterior(id.slice(4));
+    else if (id === 'jutaku') MAPS[id] = buildResidential();
+    else if (id.startsWith('int:')) { MAPS[id] = buildInterior(id.slice(4)); MAPS[id].ver = homesVer; }
+  } else if (id.startsWith('int:unit:') && MAPS[id].ver !== homesVer) {
+    // nội thất căn hộ phụ thuộc người ở → dựng lại khi thế giới đổi
+    MAPS[id] = buildInterior(id.slice(4)); MAPS[id].ver = homesVer; delete statics[id + ':0'];
   }
   return MAPS[id];
 }
@@ -43,7 +48,7 @@ export function interiorKeyFor(S, bId) { return bId === 'work' ? 'work_' + orig(
 export const placeInterior = (S, place) => (place === 'work' ? 'work_' + orig(S) : AI_PLACES[place] && AI_PLACES[place].interior) || null;
 export function buildingName(b, S) { return b.id === 'work' && S ? JOBS[orig(S)].place : b.name; }
 export function findBuilding(id) {
-  for (const mid of ['town', 'minato']) { const M = getMap(mid); const b = M.buildings.find((x) => x.id === id); if (b) return { M, b }; }
+  for (const mid of ['town', 'minato', 'jutaku']) { const M = getMap(mid); const b = M.buildings.find((x) => x.id === id); if (b) return { M, b }; }
   return null;
 }
 
@@ -57,7 +62,8 @@ export function placePlayer(id = 'dorm') {
     const I = getMap('int:' + key);
     S.map = I.id;
     S.ret = { map: fb.M.id, x: e.x, y: e.y + 2 };
-    const bed = id === 'dorm' && I.slots.sleep ? I.slots.sleep[0] : null;
+    const mine = I.slots.mysleep || I.slots.sleep;
+    const bed = id === 'dorm' && mine ? mine[0] : null;
     S.pos = bed ? { x: bed.x * TS + 8, y: (bed.y + 2) * TS + 4 } : { ...I.entry };
     if (S.pos && I.blockedTile(Math.floor(S.pos.x / TS), Math.floor((S.pos.y - 2) / TS))) S.pos = { ...I.entry };
   } else {
@@ -65,6 +71,7 @@ export function placePlayer(id = 'dorm') {
     S.pos = { x: e.x, y: e.y + 2 };
   }
   S.dir = 'down';
+  S.retStack = [];
   travelers.length = 0;
 }
 
@@ -96,15 +103,28 @@ export async function enterBuilding(bId) {
     S.map = I.id;
     S.pos = { ...I.entry };
     S.dir = 'up';
+    S.retStack = [];
     travelers.length = 0;
   });
   return true;
+}
+// Vào một căn hộ từ hành lang tòa nhà (lối ra quay về hành lang)
+export async function enterUnit(uid) {
+  const S = G.S;
+  const M = curMap(S);
+  const I = getMap('int:unit:' + uid);
+  await transition(() => {
+    S.retStack = [...(S.retStack || []), S.ret];
+    S.ret = { map: M.id, x: S.pos.x, y: S.pos.y };
+    S.map = I.id; S.pos = { ...I.entry }; S.dir = 'up';
+  });
 }
 export async function exitBuilding() {
   const S = G.S;
   if (!S.ret) return;
   await transition(() => {
-    S.map = S.ret.map; S.pos = { x: S.ret.x, y: S.ret.y }; S.dir = 'down'; S.ret = null;
+    S.map = S.ret.map; S.pos = { x: S.ret.x, y: S.ret.y }; S.dir = 'down';
+    S.ret = S.retStack && S.retStack.length ? S.retStack.pop() : null;
     travelers.length = 0; lastHourKey = '';
   });
 }
@@ -114,11 +134,45 @@ export async function travelTo(mapId) {
   await transition(() => {
     const fb = findBuilding(st);
     const e = entrance(fb.b);
-    S.map = mapId; S.pos = { x: e.x, y: e.y + 2 }; S.dir = 'down'; S.ret = null;
+    S.map = mapId; S.pos = { x: e.x, y: e.y + 2 }; S.dir = 'down'; S.ret = null; S.retStack = [];
     travelers.length = 0; lastHourKey = '';
     train.t = 0.2;
   });
 }
+
+// ---------- tự đi bộ tới đích (chọn trên bản đồ) ----------
+let auto = null;   // { path, i, map, stuck }
+const blockedTile = (M) => (x, y) => SOLID.has(M.at(x, y)) || M.decorSolid.has(x + ',' + y);
+export function autoWalkTo(S, px, py) {
+  const M = curMap(S);
+  if (!M.outdoor) return false;
+  const path = findPath(M.w, M.h, blockedTile(M), Math.floor(S.pos.x / TS), Math.floor((S.pos.y - 2) / TS), Math.floor(px / TS), Math.floor((py - 2) / TS), 8000);
+  if (!path || !path.length) return false;
+  auto = { path, i: 0, map: M.id, stuck: 0 };
+  return true;
+}
+export const autoWalking = () => !!auto;
+export const cancelAutoWalk = () => { auto = null; };
+// Bản đồ ngoài trời mà người chơi đang ở (kể cả khi đang trong nhà)
+export function outdoorMapId(S) {
+  if (curMap(S).outdoor) return S.map;
+  for (const r of [S.ret, ...[...(S.retStack || [])].reverse()]) if (r && getMap(r.map).outdoor) return r.map;
+  return 'town';
+}
+// Ra thẳng ngoài trời (từ căn hộ → hành lang → ngoài đường) trong một lần chuyển cảnh
+export async function leaveToOutdoor(S) {
+  if (curMap(S).outdoor) return;
+  const chain = [S.ret, ...[...(S.retStack || [])].reverse()].filter(Boolean);
+  const out = chain.find((r) => getMap(r.map).outdoor);
+  if (!out) return;
+  await transition(() => { S.map = out.map; S.pos = { x: out.x, y: out.y }; S.dir = 'down'; S.ret = null; S.retStack = []; travelers.length = 0; lastHourKey = ''; });
+}
+// Đi xe buýt / taxi: tới thẳng điểm đích
+export async function teleportTo(S, mapId, x, y) {
+  auto = null;
+  await transition(() => { S.map = mapId; S.pos = { x, y }; S.dir = 'down'; S.ret = null; S.retStack = []; travelers.length = 0; lastHourKey = ''; });
+}
+export const mapImage = (M, si) => staticOf(M, si);
 
 // ---------- người đi đường và xe (không gắn với AI) ----------
 const ambient = { mapId: '', walkers: [], cars: [] };
@@ -146,22 +200,49 @@ const train = { t: -1, next: 40 };
 // travelers: NPC đang đi bộ giữa hai địa điểm trên bản đồ hiện tại (hiển thị thật)
 const travelers = [];
 let lastHourKey = '', prevPlaces = {};
+// Đường đi giữa các khu: Hikari-dai ↔ thị trấn (đi bộ qua mép đường), thị trấn ↔ Minato (tàu)
+export function nextHop(from, to) {
+  if (from === to) return null;
+  if (from === 'jutaku') return 'town';
+  if (from === 'town') return to === 'jutaku' ? 'jutaku' : 'minato';
+  return 'town';
+}
+// Điểm rời khu hiện tại để tới khu `to`: mép đường hoặc cửa ga
+export function exitPoint(M, to) {
+  const hop = nextHop(M.id, to);
+  const e = (M.edges || []).find((x) => x.to === hop);
+  if (e) return { x: e.side === 'w' ? 10 : M.w * TS - 10, y: e.y0 * TS + 12, edge: e };
+  const st = M.buildings.find((b) => b.id === (M.id === 'minato' ? 'station2' : 'station'));
+  return st ? entrance(st) : null;
+}
+function walkEdge(S, e) {
+  if (fade.dir) return;
+  const T = getMap(e.to);
+  const back = (T.edges || []).find((x) => x.to === S.map);
+  const ty = Math.floor(S.pos.y / TS);
+  transition(() => {
+    S.map = e.to;
+    const yy = back ? Math.min(back.y1, Math.max(back.y0, ty)) : ty;
+    S.pos = { x: back && back.side === 'w' ? 20 : T.w * TS - 20, y: yy * TS + 10 };
+    S.dir = back && back.side === 'w' ? 'right' : 'left';
+    S.ret = null; S.retStack = [];
+    travelers.length = 0; lastHourKey = '';
+  });
+}
 function placePoint(M, place, idx = 0) {
   const P = AI_PLACES[place];
   if (!P) return null;
   if (P.map !== M.id) {
     // ở bản đồ khác → đi về ga; ở 'off' (nhà riêng, trường) → mép bản đồ
-    if (P.map === 'off') return M.id === 'town' ? { x: 1 * TS, y: 12 * TS + 10 } : { x: 49 * TS, y: 12 * TS + 10 };
-    const st = M.buildings.find((b) => b.id === (M.id === 'town' ? 'station' : 'station2'));
-    const e = entrance(st);
-    return { x: e.x, y: e.y };
+    if (P.map === 'off') return M.id === 'town' ? { x: 1 * TS, y: 15 * TS + 10 } : { x: (M.w - 1) * TS, y: 12 * TS + 10 };
+    return exitPoint(M, P.map);
   }
   if (P.spot) {
     const list = M.aiSpots[P.spot] || [[M.spots[0].tx, M.spots[0].ty]];
     const [tx, ty] = list[idx % list.length];
     return { x: tx * TS + 8, y: ty * TS + 12, spot: true };
   }
-  const bid = place === 'work' ? 'work' : place;
+  const bid = place === 'work' ? 'work' : P.building || place;
   const b = M.buildings.find((x) => x.id === bid) || M.buildings.find((x) => x.id === (place === 'apt' ? 'apt' : ''));
   if (!b) return null;
   const e = entrance(b);
@@ -237,7 +318,9 @@ const SLOT_PREF = {
 function interiorNpcs(S, M) {
   const out = [];
   const taken = new Set();
-  const list = npcIds().filter((id) => placeInterior(S, stateOf(S, id).place) === M.key).sort();
+  // ký túc xá chia phòng nam / nữ: chỉ thấy bạn cùng phòng cùng giới
+  const sameRoom = (id) => M.key !== 'dorm' || stateOf(S, id).place !== 'dorm' || PEOPLE[id].gender === (S.gender || 'm');
+  const list = npcIds().filter((id) => placeInterior(S, stateOf(S, id).place) === M.key && sameRoom(id)).sort();
   for (const id of list) {
     const d = PEOPLE[id], st = stateOf(S, id);
     const staffish = st.act === 'work' && (d.job && d.job.boss) ? 'boss' : st.act === 'work' && ['konbini', 'super', 'clinic', 'remit', 'class', 'ramen', 'teishoku'].includes(st.place) ? 'staff' : st.act;
@@ -298,11 +381,8 @@ function arrowPoint(S, M, target) {
   }
   const P = AI_PLACES[target];
   const bmap = P ? P.map : 'town';
-  if (bmap !== M.id && bmap !== 'off') {
-    const st = M.buildings.find((b) => b.id === (M.id === 'town' ? 'station' : 'station2'));
-    return entrance(st);
-  }
-  const b = M.buildings.find((x) => x.id === target);
+  if (bmap !== M.id && bmap !== 'off') return exitPoint(M, bmap);
+  const b = M.buildings.find((x) => x.id === ((P && P.building) || target));
   if (b) return entrance(b);
   const s = M.spots.find((x) => x.id === target);
   return s ? { x: s.tx * TS + 8, y: s.ty * TS + 12 } : null;
@@ -368,7 +448,7 @@ function findTarget(S, M) {
       if (!o.act && !(workHere && o.slot && o.slot.kind === 'work')) continue;
       const cx = Math.max(o.x * TS, Math.min(px, (o.x + o.w) * TS)), cy = Math.max(o.y * TS, Math.min(py - 4, (o.y + o.h) * TS));
       const d = Math.hypot(cx - px, cy - (py - 4));
-      if (d < 13 && d < bd) { bd = d; best = { type: 'obj', obj: o, label: o.act ? o.name : `${o.name} (vị trí làm việc của bạn)` }; }
+      if (d < 13 && d < bd) { bd = d; best = { type: 'obj', obj: o, label: o.act === 'unit' ? unitLabel(S, o.unit) : o.act ? o.name : `${o.name} (vị trí làm việc của bạn)` }; }
     }
   }
   for (const n of drawn) {
@@ -400,7 +480,17 @@ export const worldScene = {
     tickNeeds(S, gm);
     onHourChange(S, M);
     // di chuyển
-    const a = player.pose ? { x: 0, y: 0 } : input.axis();
+    let a = player.pose ? { x: 0, y: 0 } : input.axis();
+    if (Math.abs(a.x) + Math.abs(a.y) > 0.05) auto = null;            // tự điều khiển → hủy tự đi
+    else if (auto && auto.map === M.id) {
+      const node = auto.path[auto.i];
+      if (!node) auto = null;
+      else {
+        const tx = node[0] * TS + 8, ty = node[1] * TS + 11, dx = tx - S.pos.x, dy = ty - S.pos.y, d = Math.hypot(dx, dy);
+        if (d < 3) auto.i++; else a = { x: dx / d, y: dy / d };
+      }
+    } else if (auto) auto = null;
+    const before = auto ? S.pos.x + S.pos.y : 0;
     moving = Math.abs(a.x) > 0.05 || Math.abs(a.y) > 0.05;
     if (moving) {
       const sp = (M.outdoor ? 62 * assetEffect(S, 'speed') : 48) * (S.energy < 15 ? 0.7 : 1);
@@ -409,8 +499,18 @@ export const worldScene = {
       if (!blocked(M, nx, S.pos.y)) S.pos.x = nx;
       const ny = S.pos.y + a.y * sp * dt;
       if (!blocked(M, S.pos.x, ny)) S.pos.y = ny;
+      // tự đi mà bị kẹt ở góc → nhích sang ô kế tiếp, kẹt lâu thì dừng
+      if (auto) {
+        if (Math.abs(S.pos.x + S.pos.y - before) < 0.01) { auto.stuck += dt; if (auto.stuck > 0.35) { const n = auto.path[auto.i]; if (n) S.pos = { x: n[0] * TS + 8, y: n[1] * TS + 11 }; auto.stuck = 0; } }
+        else auto.stuck = 0;
+      }
       // bước ra cửa trong nhà → ra ngoài
       if (!M.outdoor && S.dir === 'down' && Math.floor(S.pos.y / TS) >= M.door.y - 0 && Math.abs(S.pos.x - (M.door.x * TS + 8)) < 8) { G.pendingExit = true; }
+      // đi hết đường ra mép bản đồ → sang khu bên cạnh
+      if (M.outdoor && M.edges) for (const e of M.edges) {
+        const ty = Math.floor(S.pos.y / TS);
+        if (ty >= e.y0 && ty <= e.y1 && ((e.side === 'w' && S.pos.x < 11) || (e.side === 'e' && S.pos.x > M.w * TS - 11))) { walkEdge(S, e); break; }
+      }
     }
     // xe, người đi đường, tàu
     const night = S.time < 6 * 60 || S.time > 22 * 60;
@@ -528,7 +628,16 @@ export const worldScene = {
         pill(c, buildingName(b, S), X + W / 2, b.y * TS - 5, { size: 6 });
       }
       if (M.id === 'town') pill(c, 'Công viên', 12 * TS + 8, 28 * TS + 6, { size: 6, bg: 'rgba(30,70,40,.8)' });
-    } else if (this.target && this.target.type === 'obj') {
+      for (const e of M.edges || []) pill(c, e.side === 'w' ? `◀ ${e.name}` : `${e.name} ▶`, e.side === 'w' ? 52 : M.w * TS - 52, e.y0 * TS - 4, { size: 6, bg: 'rgba(40,60,110,.85)' });
+    }
+    if (!M.outdoor) {
+      // biển tầng, số phòng trên cửa
+      for (const o of M.objects) {
+        if (o.text) pill(c, o.text, o.x * TS + 8, o.y * TS + 8, { size: 6, bg: 'rgba(47,62,79,.95)' });
+        if (o.room) pill(c, o.room, o.x * TS + 8, o.y * TS + 1, { size: 5, bg: 'rgba(60,45,35,.9)' });
+      }
+    }
+    if (!M.outdoor && this.target && this.target.type === 'obj') {
       const o = this.target.obj;
       c.strokeStyle = 'rgba(255,207,90,.9)'; c.lineWidth = 1;
       c.strokeRect(o.x * TS + 0.5, o.y * TS + 0.5, o.w * TS - 1, o.h * TS - 1);
@@ -589,6 +698,21 @@ export const worldScene = {
       const touch = document.body.classList.contains('touch');
       pill(c, (touch ? '' : '[E] ') + this.target.label, px, py - 30, { size: 6.5, bg: 'rgba(255,207,90,.95)', color: '#1b2238' });
     }
+    // bản đồ nhỏ ở góc phải trên (ngoài trời)
+    if (M.outdoor && !(S.settings && S.settings.minimap === false)) {
+      const mw = 78, mh = Math.round((mw * M.h) / M.w), mx = vw - mw - 5, my = 26;
+      c.globalAlpha = 0.88;
+      rect(c, '#0e1326', mx - 2, my - 2, mw + 4, mh + 4);
+      c.drawImage(staticOf(M, si), 0, 0, M.w * TS, M.h * TS, mx, my, mw, mh);
+      c.globalAlpha = 1;
+      const k = mw / (M.w * TS);
+      // khung nhìn hiện tại
+      c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = 0.6;
+      c.strokeRect(mx + cx * k, my + cy * k, Math.min(mw, vw * k), Math.min(mh, vh * k));
+      if (tp) { rect(c, '#ffcf5a', mx + tp.x * k - 1.5, my + tp.y * k - 1.5, 3, 3); }
+      rect(c, '#ff5a5a', mx + S.pos.x * k - 1.5, my + S.pos.y * k - 1.5, 3, 3);
+      text(c, 'M: bản đồ', mx + mw / 2, my + mh + 7, { size: 5, color: '#c9d2ff', align: 'center' });
+    }
     if (fade.a > 0) { c.fillStyle = `rgba(8,10,20,${fade.a})`; c.fillRect(0, 0, vw, vh); }
   },
 };
@@ -606,5 +730,5 @@ function drawNpc(c, S, n) {
   drawPerson(c, n.x, n.y, P.look, dir, tAnim + n.x * 0.01, !!n.moving, pose);
 }
 
-export function initWorld() { getMap('town'); getMap('minato'); }
+export function initWorld() { getMap('town'); getMap('minato'); getMap('jutaku'); }
 export function fadeActive() { return fade.dir !== 0 || fade.a > 0; }

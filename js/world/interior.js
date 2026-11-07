@@ -9,8 +9,11 @@ import { INTERIORS } from '../content/interiors.js';
 const FLOORS = { tatami: T.FTATAMI, wood: T.FWOOD, tile: T.FTILE, conc: T.FCONC, carpet: T.FCARPET, soil: T.FSOIL };
 const COMMON = { '=': { kind: 'roller', name: 'Đầu băng chuyền' } };
 
+// Nội thất sinh động (hành lang manshon, căn hộ): module khác đăng ký hàm tạo theo tiền tố khóa
+export const DYNAMIC = {};
 export function buildInterior(key) {
-  const def = INTERIORS[key];
+  const pre = key.split(':')[0];
+  const def = INTERIORS[key] || (DYNAMIC[pre] && DYNAMIC[pre](key.slice(pre.length + 1)));
   const w = Math.max(...def.rows.map((r) => r.length)), h = def.rows.length;
   const M = makeMap('int:' + key, w, h, T.VOID);
   M.outdoor = false;
@@ -62,11 +65,14 @@ export function buildInterior(key) {
   for (const o of M.objects) {
     if (!o.slot) continue;
     const list = M.slots[o.slot.kind] || (M.slots[o.slot.kind] = []);
+    // giường / đệm: một người một chỗ (không xếp 2 người nằm chung)
+    if (o.slot.at === 'on' && /sleep/.test(o.slot.kind)) { list.push({ x: o.x, y: o.y, o, sit: true }); continue; }
     if (o.slot.at === 'on') { for (let y = o.y; y < o.y + o.h; y++) for (let x = o.x; x < o.x + o.w; x++) list.push({ x, y, o, sit: true }); continue; }
     const yy = o.slot.at === 'above' ? o.y - 1 : o.y + o.h;
     for (let x = o.x; x < o.x + o.w; x++) if (!M.blockedTile(x, yy) && M.at(x, yy) !== T.DOOR) list.push({ x, y: yy, o, face: o.slot.at === 'above' ? 'down' : 'up' });
   }
   M.entry = M.door ? { x: M.door.x * TS + 8, y: (M.door.y - 1) * TS + 12 } : { x: TS * 2, y: TS * 2 };
+  if (def.post) def.post(M);
   return M;
 }
 

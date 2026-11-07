@@ -97,6 +97,8 @@ export function buildTown() {
   M.walkLanes = { h: [[12, 0, 53], [15, 0, 53], [24, 0, 53], [27, 0, 53]], v: [[19, 0, 34], [22, 0, 34]] };
   M.carLanes = [{ h: true, at: 13, d: -1, len: 54 }, { h: true, at: 14, d: 1, len: 54 }, { h: true, at: 25, d: -1, len: 54 }, { h: true, at: 26, d: 1, len: 54 }, { h: false, at: 20, d: 1, len: 38 }, { h: false, at: 21, d: -1, len: 38 }];
   M.rails = { x: 54, dir: 1 };
+  // đi bộ hết đường phía tây → sang khu dân cư Hikari-dai
+  M.edges = [{ side: 'w', to: 'jutaku', y0: 12, y1: 15, name: '🏘️ Khu dân cư Hikari-dai' }];
   M.decor = (c, si) => {
     let X = 9 * TS, Y = 10 * TS;
     rect(c, '#3f6b55', X + 1, Y + 3, 14, 12); rect(c, '#2e5442', X + 1, Y + 3, 14, 2);
@@ -170,6 +172,54 @@ export function buildIndustrial() {
       rect(c, col, x * TS + 1, y * TS, 14, 26); rect(c, '#334', x * TS + 3, y * TS + 2, 10, 6);
     }
     rect(c, '#8a5a35', 43 * TS + 1, 31 * TS + 6, 14, 3); rect(c, '#6b4428', 43 * TS + 1, 31 * TS + 3, 14, 2);
+    for (const [lx, ly] of M.lamps) drawLamp(c, lx, ly);
+  };
+  return M;
+}
+
+// ======================= KHU DÂN CƯ HIKARI-DAI =======================
+// Các tòa manshon nơi người Nhật trong thị trấn sống; nối với thị trấn bằng đường bộ ở mép đông.
+export function buildResidential() {
+  const M = makeMap('jutaku', 46, 30);
+  M.name = 'Khu dân cư Hikari-dai';
+  M.buildings = [
+    { id: 'hikari', name: 'Hikari Heights', jp: '光ハイツ', x: 2, y: 2, w: 8, h: 9, door: 6, wall: '#efe7da', roof: '#7d6a58', style: 'apt' },
+    { id: 'sakura', name: 'Sakura Mansion', jp: 'さくらマンション', x: 12, y: 2, w: 8, h: 9, door: 16, wall: '#f3e3e6', roof: '#9c5b6b', style: 'apt' },
+    { id: 'residence', name: 'Hikari-dai Residence', jp: '光台レジデンス', x: 26, y: 1, w: 10, h: 10, door: 31, wall: '#e3e8ee', roof: '#45586e', style: 'apt' },
+    { id: 'fudosan', name: 'Bất động sản Hikari', jp: '不動産', x: 38, y: 6, w: 6, h: 5, door: 40, wall: '#f4f1e6', roof: '#3f7a5a', style: 'shop' },
+  ];
+  M.spots = [{ id: 'jpark', tx: 10, ty: 22, name: 'Công viên Hikari-dai', interact: true }];
+  M.aiSpots = { jpark: [[9, 22], [11, 22], [10, 23], [12, 21], [8, 21]] };
+  for (let x = 0; x < M.w; x++) { M.set(x, 12, T.WALK); M.set(x, 13, T.ROAD); M.set(x, 14, T.ROAD); M.set(x, 15, T.WALK); }
+  for (let y = 0; y < M.h; y++) {
+    M.set(21, y, M.at(21, y) === T.ROAD ? T.ROAD : T.WALK);
+    M.set(24, y, M.at(24, y) === T.ROAD ? T.ROAD : T.WALK);
+    M.set(22, y, T.ROAD); M.set(23, y, T.ROAD);
+  }
+  for (const x of [22, 23]) for (const y of [12, 15]) M.zebra[x + ',' + y] = 'v';
+  for (const x of [21, 24]) for (const y of [13, 14]) M.zebra[x + ',' + y] = 'h';
+  // công viên + lối đi; khu đất trống phía đông nam (sẽ bán lô xây nhà)
+  for (let x = 4; x <= 17; x++) M.set(x, 24, T.PATH);
+  for (let y = 16; y <= 24; y++) M.set(10, y, T.PATH);
+  for (let y = 19; y <= 22; y++) for (let x = 14; x <= 17; x++) M.set(x, y, T.WATER);
+  for (let y = 18; y <= 27; y++) for (let x = 27; x <= 43; x++) if ((x - 27) % 6 === 0 || (y - 18) % 5 === 0) M.set(x, y, T.PATH);
+  placeBuildings(M);
+  const keep = new Set(), reserve = reserveFn(keep);
+  for (const b of M.buildings) reserve(b.door, b.y + b.h);
+  for (const s of M.spots) reserve(s.tx, s.ty);
+  for (const list of Object.values(M.aiSpots)) for (const [x, y] of list) reserve(x, y, 0);
+  for (let y = 17; y <= 28; y++) for (let x = 26; x <= 44; x++) keep.add(x + ',' + y);
+  plantTrees(M, keep, 0.03, (x, y) => y >= 17 && x < 20);
+  for (const x of [4, 12, 19, 28, 36, 43]) { M.lamps.push([x, 12]); M.lamps.push([x, 15]); }
+  M.lamps.push([10, 20]);
+  M.parkTree = (x, y) => y >= 17 && x < 20;
+  M.walkLanes = { h: [[12, 0, 45], [15, 0, 45]], v: [[21, 0, 29], [24, 0, 29]] };
+  M.carLanes = [{ h: true, at: 13, d: -1, len: 46 }, { h: true, at: 14, d: 1, len: 46 }, { h: false, at: 22, d: 1, len: 30 }, { h: false, at: 23, d: -1, len: 30 }];
+  M.edges = [{ side: 'e', to: 'town', y0: 12, y1: 15, name: '🏘️ Về thị trấn Hikari' }];
+  M.decor = (c, si) => {
+    // ghế đá công viên, biển khu đất bán
+    rect(c, '#8a5a35', 8 * TS + 1, 20 * TS + 6, 14, 3); rect(c, '#6b4428', 8 * TS + 1, 20 * TS + 3, 14, 2);
+    rect(c, '#f4f1e6', 34 * TS, 17 * TS + 4, 18, 10); rect(c, '#c0392b', 34 * TS + 2, 17 * TS + 6, 14, 2); rect(c, '#555', 34 * TS + 8, 17 * TS + 14, 2, 4);
     for (const [lx, ly] of M.lamps) drawLamp(c, lx, ly);
   };
   return M;

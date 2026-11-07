@@ -23,6 +23,8 @@ export const AI_PLACES = {
   park: { map: 'town', kind: 'leisure', spot: 'park', name: 'Công viên' },
   river: { map: 'town', kind: 'leisure', spot: 'river', name: 'Bờ sông' },
   mpark: { map: 'minato', kind: 'leisure', spot: 'mpark', name: 'Công viên Minato' },
+  jpark: { map: 'jutaku', kind: 'leisure', spot: 'jpark', name: 'Công viên Hikari-dai' },
+  fudosan: { map: 'jutaku', kind: 'service', open: [10, 19], name: 'Bất động sản Hikari' },
   dorm_front: { map: 'town', kind: 'spot', spot: 'dorm_front', name: 'trước ký túc xá' },
   work_corner: { map: 'town', kind: 'spot', spot: 'work_corner', name: 'góc đường trước xưởng' },
   konbini_front: { map: 'town', kind: 'spot', spot: 'konbini_front', name: 'trước konbini' },
@@ -92,26 +94,26 @@ export const CORE_AI = {
 // Ca tối đặc biệt của Tuấn (du học sinh: tối đa 28 giờ/tuần)
 export const SPECIAL_SHIFTS = { eve: { days: [0, 1, 2, 3, 4, 5], from: 18, to: 23 } };
 
-const pick = (arr, ...seed) => arr[Math.floor(rnd(...seed) * arr.length)];
-const between = (a, b, ...seed) => a + Math.floor(rnd(...seed) * (b - a + 1));
+export const pick = (arr, ...seed) => arr[Math.floor(rnd(...seed) * arr.length)];
+export const between = (a, b, ...seed) => a + Math.floor(rnd(...seed) * (b - a + 1));
 
-function makeTraits(seed) {
+export function makeTraits(seed) {
   const t = {};
   for (const k of ['ext', 'agr', 'con', 'neu', 'opn', 'jea', 'loy', 'spd', 'amb', 'luck']) t[k] = Math.round(Math.min(0.95, Math.max(0.05, 0.5 + (rnd(seed, k) + rnd(seed, k, 2) - 1) * 0.6)) * 100) / 100;
   return t;
 }
-function makeLook(nat, gender, age, seed) {
+export function makeLook(nat, gender, age, seed) {
   const hair = age >= 65 ? pick(['#d4d4da', '#b8b8c0', '#9a9aa2'], seed, 'h') : nat === 'jp' ? pick(['#1e1a1a', '#3b2a20', '#6b4226', '#9c5a2e'], seed, 'h') : pick(['#1e1a1a', '#2b1d16', '#3b2a20'], seed, 'h');
   return { hair, shirt: pick(LOOK.shirt, seed, 's'), pants: pick(LOOK.pants, seed, 'p'), skin: pick(nat === 'jp' ? ['#f6d7b8', '#f1d3b5', '#eac39c'] : ['#eac39c', '#e2b48c', '#d9a77c'], seed, 'k'), gender };
 }
-function likesOf(t) {
+export function likesOf(t) {
   const l = [];
   if (t.spd > 0.55) l.push('beer'); if (t.agr > 0.6) l.push('flower'); if (t.opn > 0.55) l.push('vncoffee'); if (!l.length || t.con > 0.6) l.push('sweets');
   return l.slice(0, 2);
 }
 
 // Lời thoại sinh theo quy luật: theo quốc tịch + mức thân thiết + chi tiết tiểu sử
-function makeLines(d) {
+export function makeLines(d) {
   const b = d.bio;
   if (d.jp) return [
     `${d.name} gật đầu chào: 「どうも」.`,

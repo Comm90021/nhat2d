@@ -21,6 +21,7 @@ import { community } from './community.js';
 import { fam, famGain, canVisitHome, visitHome } from './family.js';
 import { canSpouseVisa } from './romance.js';
 import { setVisa } from './career.js';
+import { ringBell, mailbox } from './homes.js';
 
 const H = (h, m = 0) => h * 60 + m;
 const PLACE_CAT = { konbini: 'food', super: 'food', clinic: 'health', class: 'study', remit: 'remit', center: 'social', park: 'social', shrine: 'other', dorm: 'food', river: 'other', work: 'other' };
@@ -207,6 +208,17 @@ const PLACES = {
       { label: '🤝 Làm tình nguyện: trò chuyện với các cụ', sub: '60 phút', minutes: 60, fx: { mood: 7, jp: 1.5 }, cond: (s) => (s.today.careVol ? 'Hôm nay đã làm rồi' : null), after: (s) => { s.today.careVol = true; }, res: 'Một cụ bà kể chuyện thời trẻ, bạn nghe được một nửa. Cụ nắm tay bạn: 「ありがとうね」.' },
       { label: '📄 Hỏi về việc điều dưỡng', minutes: 10, res: 'Ngành điều dưỡng (介護) cần người. Muốn làm theo visa Kỹ năng đặc định phải thi kỹ năng điều dưỡng + tiếng Nhật điều dưỡng, cộng với JLPT N4 trở lên. (Ứng tuyển trong 📱 → Việc làm; thi chứng chỉ điều dưỡng cũng ở đó.)' },
     ],
+  },
+  fudosan: {
+    name: 'Bất động sản Hikari', jp: '不動産',
+    closed: (S) => (S.time < H(10) || S.time >= H(19) ? 'Văn phòng mở 10:00 – 19:00.' : null),
+    desc: () => 'Văn phòng môi giới thuê / mua nhà. Kính dán đầy tờ rao: 1K 6,2 vạn, 1LDK 8,5 vạn, 3LDK 12,8 vạn/tháng…',
+    actions: () => [{ label: '🏠 Hỏi thuê / mua nhà', sub: 'Sẽ mở ở bản cập nhật nhà ở (v3.6)', minutes: 10, res: 'Nhân viên đưa bạn tờ giới thiệu: thuê nhà cần tiền cọc (敷金), tiền lễ (礼金), công ty bảo lãnh, và nhiều chủ nhà còn hỏi visa, thu nhập. Mua nhà thì cần vay ngân hàng (住宅ローン) — thường phải có vĩnh trú hoặc visa vợ/chồng. Tính năng thuê / mua sẽ có ở bản cập nhật sau.' }],
+  },
+  jpark: {
+    name: 'Công viên Hikari-dai', jp: '公園',
+    desc: () => 'Công viên nhỏ giữa khu manshon: hồ nước, ghế đá, các cụ tập thể dục buổi sáng, trẻ con chơi buổi chiều.',
+    actions: () => [{ label: '🚶 Đi dạo một vòng', minutes: 30, energy: 3, fx: () => ({ mood: 5, energy: -3 }), res: 'Gió mát, tiếng trẻ con cười. Đầu óc nhẹ hẳn.' }],
   },
   apt: {
     name: 'Chung cư Minato', jp: 'アパート',
@@ -395,6 +407,8 @@ export async function interact(target) {
     const o = target.obj;
     const workHere = S.emp && S.emp.co && placeInterior(S, S.emp.co) === curMap(S).key;
     if (o.act === 'company') return companyMenu(S, curMap(S).key);
+    if (o.act === 'unit') return ringBell(S, o.unit);
+    if (o.act === 'mailbox') return mailbox(S, curMap(S).bid);
     if (o.act === 'work' && !workHere) { await modal({ title: o.name, text: 'Bạn không còn làm ở đây.' }); return; }
     if (!o.act) return openPlace('work', ['Vào ca', 'Làm thêm', 'Thi tay nghề', 'Đã xong', 'được nghỉ', 'Chủ Nhật', 'Thay', 'Rửa tay', 'bảng', 'thất nghiệp']);
     return openPlace(o.act, o.pick || null);

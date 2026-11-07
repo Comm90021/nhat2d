@@ -10,6 +10,8 @@ import { romanceActions } from './romance.js';
 import { CAT, monthReport } from './finance.js';
 import { openBank } from './bank.js';
 import { openJobs } from './jobs.js';
+import { openMap } from './mapview.js';
+import { familyText } from './homes.js';
 import { stateOf, moodInfo } from './ai/sim.js';
 import { AI_PLACES } from './ai/world.js';
 import { ACT } from './ai/rules.js';
@@ -29,6 +31,7 @@ export async function openPhone(S) {
         { label: '📅 Lịch & việc sắp tới', value: 'cal' },
         { label: '💼 Việc làm', sub: 'Tìm việc, chuyển việc, thi chứng chỉ nghề', value: 'jobs' },
         { label: '🏦 Ngân hàng', sub: 'Tài khoản, chuyển tiền, tiết kiệm, đầu tư, vay, vé số, mua sắm', value: 'bank' },
+        { label: '🗺️ Bản đồ', sub: 'Xem 3 khu, chọn nơi đến: tự đi bộ / xe buýt / taxi (phím M)', value: 'map' },
         { label: '👥 Ai đang ở đâu?', sub: 'Mỗi người có lịch sống riêng', value: 'where' },
         { label: '✖ Cất điện thoại', value: null, cancel: true },
       ],
@@ -42,6 +45,7 @@ export async function openPhone(S) {
     if (v === 'contacts') await contacts(S, met);
     if (v === 'bank') await openBank(S);
     if (v === 'jobs') await openJobs(S);
+    if (v === 'map') { await openMap(S); return; }
     if (v === 'cal') await modal({ who: 'Lịch', title: '📅 Lịch & việc sắp tới', html: calendarHtml(S), ok: 'Đóng' });
     if (v === 'where') await modal({ who: 'Ngay lúc này', title: '👥 Ai đang ở đâu?', wide: true, html: whereHtml(S), ok: 'Đóng' });
   }
@@ -59,8 +63,9 @@ async function contacts(S, met) {
   const evening = (S.time >= 17 * 60 && S.time < 22 * 60) || (dow(S) >= 5 && S.time >= 11 * 60 && S.time < 21 * 60);
   const rom = romanceActions(S, id).filter((a) => !a.label.includes('Tỏ tình') || evening);
   const act = await modal({
-    who: d.role, title: d.name, html: affBar(p.aff) + (d.perks[stageIdx(p.aff)] ? `<p class="dim">Quyền lợi hiện tại: ${esc(d.perks[stageIdx(p.aff)])}</p>` : ''),
+    who: d.role, title: d.name, html: affBar(p.aff) + `<p class="dim">🏠 ${familyText(S, id)}</p>` + (d.perks[stageIdx(p.aff)] ? `<p class="dim">Quyền lợi hiện tại: ${esc(d.perks[stageIdx(p.aff)])}</p>` : ''),
     choices: [
+      { label: '🗺️ Xem nhà / chỗ đang ở trên bản đồ', value: 'map' },
       { label: '💌 Nhắn tin hỏi thăm', sub: '5 phút · mỗi người 1 lần/ngày', value: 'msg', disabled: p.msg === S.day, reason: 'Hôm nay nhắn rồi' },
       { label: '🍜 Gọi rủ đi ăn', sub: '¥2,000 · 2 tiếng', value: 'eat', disabled: stageIdx(p.aff) < 1 || !evening || S.money < 2000, reason: stageIdx(p.aff) < 1 ? 'Chưa đủ thân' : !evening ? 'Chỉ rủ được buổi tối hoặc cuối tuần' : 'Không đủ tiền' },
       ...rom.map((a, k) => { const r = a.cond ? a.cond(S) : null; return { label: a.label, sub: a.sub, value: 'r' + k, disabled: !!r, reason: r }; }),
@@ -75,6 +80,7 @@ async function contacts(S, met) {
     toast(`💌 ${d.name} đã trả lời tin nhắn của bạn`);
   }
   if (act === 'eat') await invite(S, id);
+  if (act === 'map') { const pl = AI_PLACES[stateOf(S, id).place], home = AI_PLACES[d.home]; await openMap(S, (pl && pl.map !== 'off' && pl.map) || (home && home.map !== 'off' && home.map) || undefined); }
 }
 
 // Danh sách NPC đã quen (và các NPC chính) đang ở đâu, làm gì, tâm trạng — do AI quyết định

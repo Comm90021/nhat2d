@@ -141,9 +141,9 @@ export function updateHud(S, hintText) {
   yenEl.classList.toggle('neg', S.money < 0);
   $('h-debt').textContent = S.debt > 0 ? `Nợ: ${vnd(S.debt)}` : 'Đã trả hết nợ 🎉';
   const p = progress(S.lang);
-  const jpTxt = p.done ? 'N1' : `${p.cur} → ${p.target} ${Math.min(99, Math.round((p.xp / p.need) * 100))}%`;
+  const jpTxt = p.done ? 'trình độ N1' : `trình độ ${p.cur} · đang học ${p.target} ${Math.min(99, Math.round((p.xp / p.need) * 100))}%`;
   const cert = bestCert(S);
-  $('h-extra').textContent = `🗣️ ${jpTxt}${cert ? ' · 📜' + cert : ''} · ⭐ ${Math.round(S.rep)}${S.sick > 0 ? ' · 🤒' : ''}${S.wage ? ' · 🧾 ' + yen(S.wage) : ''}`;
+  $('h-extra').textContent = `🗣️ ${jpTxt}${cert ? ' · 📜 chứng chỉ ' + cert : ''} · ⭐ ${Math.round(S.rep)}${S.sick > 0 ? ' · 🤒' : ''}${S.wage ? ' · 🧾 ' + yen(S.wage) : ''}`;
   for (const k of BAR_KEYS) {
     const el = $('bar-' + k);
     const v = Math.round(S[k]);

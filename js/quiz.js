@@ -2,7 +2,7 @@
 import { modal, toast, esc } from './ui.js';
 import { sfx } from './audio.js';
 import { KIND } from './content/jlpt.js';
-import { pickQuestion, answer, progress, shuffleQ } from './learning.js';
+import { pickQuestion, answer, progress, shuffleQ, LEVELS } from './learning.js';
 import { WORK_Q } from './content/work.js';
 import { WORK_Q2 } from './content/work2.js';
 import { assetEffect } from './finance.js';
@@ -37,7 +37,8 @@ export async function studyJapanese(S, n, o = {}) {
   let ok = 0, xp = 0, levelUp = null;
   for (let i = 0; i < n; i++) {
     const q = pickQuestion(S.lang);
-    const right = await ask(q, { title: `${o.title || 'Câu'} ${i + 1}/${n}` });
+    const tg = progress(S.lang).target, review = LEVELS.indexOf(q.lv) < LEVELS.indexOf(tg);
+    const right = await ask(q, { title: `${o.title || 'Câu'} ${i + 1}/${n}`, who: `${KIND[q.k] ? KIND[q.k].label : 'Câu hỏi'} · ${review ? `ôn tập ${q.lv}` : q.lv}` });
     const r = answer(S.lang, q, right, { mult: (o.mult || 1) * assetEffect(S, 'study') });
     xp += r.gain;
     if (right) {

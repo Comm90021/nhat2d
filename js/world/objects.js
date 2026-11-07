@@ -1,5 +1,5 @@
 // Vẽ đồ đạc trong nhà bằng pixel. Phần tĩnh vẽ một lần; phần động (băng chuyền, hơi nước, màn hình, robot) vẽ mỗi khung hình.
-import { TS, rect, disc, shade } from '../pixel.js';
+import { TS, rect, disc, shade, text } from '../pixel.js';
 
 const wood = '#8a5a35', wood2 = '#6b4428', metal = '#9aa3ab', metal2 = '#6f777e';
 
@@ -116,6 +116,26 @@ export function drawObjectStatic(c, o) {
     case 'forklift':
       rect(c, '#f2c230', X + 1, Y + 2, W - 6, H - 4); rect(c, '#333', X + W - 6, Y, 2, H); rect(c, '#333', X + 3, Y + 4, 8, 6);
       break;
+    case 'unitdoor':
+      rect(c, '#6b5444', X + 2, Y, 12, H); rect(c, '#8a6c56', X + 3, Y + 1, 10, H - 2);
+      rect(c, '#e8d9a8', X + 4, Y + 3, 8, 3); rect(c, '#d9c27a', X + 11, Y + 9, 2, 2);
+      break;
+    case 'floorsign':
+      rect(c, '#2f3e4f', X + 2, Y + 3, 12, 9); rect(c, '#ffffff', X + 3, Y + 4, 10, 7);
+      break;
+    case 'mailbox':
+      for (let i = 0; i < o.w * 2; i++) for (let j = 0; j < 3; j++) { rect(c, '#9aa3ab', X + 1 + i * 8, Y + 1 + j * 5, 7, 4); rect(c, '#3b4b5a', X + 3 + i * 8, Y + 2 + j * 5, 3, 1); }
+      break;
+    case 'plant':
+      rect(c, '#9c5a2e', X + 5, Y + 9, 6, 6); disc(c, '#3f8a46', X + 8, Y + 6, 5); disc(c, '#56a85c', X + 6, Y + 5, 3);
+      break;
+    case 'tv':
+      rect(c, wood2, X + 1, Y + 9, W - 2, 6); rect(c, '#1d2229', X + 2, Y + 1, W - 4, 9);
+      break;
+    case 'bed':
+      rect(c, wood2, X + 1, Y + 1, W - 2, H - 2); rect(c, '#f1ece0', X + 2, Y + 2, W - 4, H - 4);
+      rect(c, '#c98a6b', X + 2, Y + 9, W - 4, H - 11); rect(c, '#ffffff', X + 4, Y + 3, W - 8, 5);
+      break;
     default: rect(c, '#888', X + 2, Y + 2, W - 4, H - 4);
   }
 }
@@ -148,6 +168,8 @@ export function drawObjectAnim(c, o, t, busy) {
     if (busy && Math.floor(t * 6 + o.x) % 4 === 0) { rect(c, '#fff6a8', X + 8, Y + 4, 2, 2); rect(c, '#ffb347', X + 11, Y + 2, 1, 1); rect(c, '#ffb347', X + 6, Y + 2, 1, 1); }
   } else if (o.kind === 'panel') {
     for (let i = 0; i < o.w; i++) rect(c, Math.floor(t * 2 + i) % 2 ? '#6fdc8c' : '#e35d5b', X + i * TS + 3, Y + 3, 2, 2);
+  } else if (o.kind === 'tv') {
+    if (busy) { c.globalAlpha = 0.85; rect(c, ['#6fa3cf', '#8fc3ef', '#f2c48a'][Math.floor(t * 1.5 + o.x) % 3], X + 3, Y + 2, W - 6, 7); c.globalAlpha = 1; }
   } else if (o.kind === 'fridge' && o.w > 1) {
     // ánh đèn tủ lạnh
     c.globalAlpha = 0.12 + 0.05 * Math.sin(t * 2); rect(c, '#ffffff', X + 1, Y, W - 2, H / 2); c.globalAlpha = 1;

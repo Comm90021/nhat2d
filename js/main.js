@@ -1,12 +1,13 @@
 // Khởi động game: màn hình chính, tạo nhân vật, vòng lặp khung hình.
 import { G, newState, load, save, clearSave, MIDNIGHT, YEAR_DAYS, year, bestCert } from './state.js';
-import { levelStats, progress } from './learning.js';
+import { levelStats, progress, grantLevel } from './learning.js';
 import { ending } from './days.js';
 import { nextSessionText } from './exam.js';
 import { journeyHtml } from './career.js';
 import { openPhone } from './phone.js';
+import { openMap } from './mapview.js';
 import './systems.js';
-import { ensureWorld } from './ai/world.js';
+import { ensureHomes } from './homes.js';
 import { ensureEmp } from './jobs.js';
 import { apptCheck } from './ai/proactive.js';
 import { exitBuilding, curMap, fadeActive } from './town.js';
@@ -167,8 +168,9 @@ const HELP_HTML = `<ul class="help">
 </ul>`;
 
 function startPlaying() {
-  ensureWorld(G.S);
+  ensureHomes(G.S);
   ensureEmp(G.S);
+  for (const c of G.S.certs || []) if (c.type === 'JLPT') grantLevel(G.S.lang, c.lv);
   if (!G.S.map) placePlayer('dorm');
   showScreen(null);
   engine.scene = townScene;
@@ -277,6 +279,7 @@ function frame(now) {
     else if (S.time >= MIDNIGHT) runFlow(() => passOut(S));
     else if (ap && !ap.done && (S.time > ap.at + 120 || (here === ap.place && S.time >= ap.at - 30))) runFlow(() => apptCheck(S, here));
     else if (S.health <= 0 || S.mood <= 0 || S.rep <= 0) runFlow(() => critical(S));
+    else if (input.hit('KeyM')) runFlow(() => openMap(S));
     else if (input.act() && townScene.target) { const t = townScene.target; runFlow(() => interact(t)); }
   }
   hudT -= dt;

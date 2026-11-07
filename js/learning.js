@@ -39,6 +39,14 @@ export function targetLevel(L) {
   const i = cur ? LEVELS.indexOf(cur) + 1 : 0;
   return LEVELS[Math.min(i, LEVELS.length - 1)];
 }
+// Đỗ JLPT cấp lv: coi như năng lực đã đạt cấp đó và mọi cấp dưới (kỳ thi thật đã chứng minh)
+export function grantLevel(L, lv) {
+  L.got = L.got || [];
+  for (const l of LEVELS.slice(0, LEVELS.indexOf(lv) + 1)) {
+    if (!L.got.includes(l)) L.got.push(l);
+    L.lv[l].xp = Math.max(L.lv[l].xp, NEED[l]);
+  }
+}
 export const levelLabel = (L) => currentLevel(L) || 'Sơ cấp';
 export const levelIndex = (L) => (currentLevel(L) ? LEVELS.indexOf(currentLevel(L)) + 1 : 0); // 0..5
 

@@ -2,7 +2,7 @@
 // quan hệ giữa các NPC, tin đồn. Không có kịch bản riêng cho từng người.
 import { AI_PLACES, WORKPLACES, SPECIAL_SHIFTS, PEOPLE } from './world.js';
 import { rnd, gauss, needAt, traitWeight, WEATHER_OUT, OUTDOOR_ACTS, skipsWork, nextMood, moodOf, pairDrift } from './rules.js';
-import { dow } from '../calendar.js';
+import { dow, doy, HOLIDAYS, placeOpenOnHoliday } from '../calendar.js';
 
 const clamp = (v, a = 0, b = 100) => Math.max(a, Math.min(b, v));
 export const ids = () => Object.keys(PEOPLE).filter((k) => PEOPLE[k].traits);
@@ -25,7 +25,7 @@ export function adjustMood(S, id, v) { S.world.moodAdj[id] = (S.world.moodAdj[id
 const PLACE_FOR = {
   eat: ['konbini', 'ramen', 'teishoku', 'HOME'],
   shop: ['konbini', 'super'],
-  leisure: ['park', 'river', 'center', 'mpark'],
+  leisure: ['park', 'river', 'center', 'mpark', 'jpark'],
   social: ['ramen', 'teishoku', 'park', 'konbini_front', 'center'],
   study: ['class', 'center', 'HOME'],
   worship: ['shrine'],
@@ -40,7 +40,8 @@ function moodMod(act, mood) {
 }
 
 export function decide(S, id, hour) {
-  const d = PEOPLE[id], tr = d.traits, seed = S.world.seed, day = S.day, wd = dow(S), wk = wd >= 5;
+  const d = PEOPLE[id], tr = d.traits, seed = S.world.seed, day = S.day, wd = dow(S);
+  const hol = !!HOLIDAYS[doy(S)], wk = wd >= 5 || hol;
   const mood = moodToday(S, id);
   const ov = S.world.override && S.world.override[id];
   if (ov && ov.day === day && hour >= ov.from && hour < ov.to) return { act: ov.act, place: ov.place };
@@ -56,12 +57,13 @@ export function decide(S, id, hour) {
     return { act: 'home', place: d.home, sick: true };
   }
   // đi làm theo ca
-  if (sh && sh.days.includes(wd) && hour >= sh.from && hour < sh.to && !skipsWork(tr, mood, `${seed}|${id}|${day}`)) {
+  const closedToday = hol && d.job && !placeOpenOnHoliday(d.job.place);
+  if (sh && !closedToday && sh.days.includes(wd) && hour >= sh.from && hour < sh.to && !skipsWork(tr, mood, `${seed}|${id}|${day}`)) {
     // nghỉ trưa: người làm ca dài đi ăn lúc 12h
     if (hour === 12 && sh.to - sh.from >= 8 && rnd(seed, id, day, 'lunch') < 0.35) return { act: 'eat', place: rnd(seed, id, day, 'lp') < 0.5 ? 'konbini' : (d.job.place === 'work' ? 'konbini' : AI_PLACES[d.job.place].map === 'minato' ? 'teishoku' : 'ramen') };
     return { act: 'work', place: d.job.place };
   }
-  if (d.student && !wk && hour >= 9 && hour < 15) return { act: 'study', place: 'school' };
+  if (d.student && !wk && hour >= 9 && hour < 15 && !closedToday) return { act: 'study', place: 'school' };
   // ứng viên theo điểm
   let best = { act: 'home', place: d.home }, bestScore = 0;
   for (const act of Object.keys(PLACE_FOR)) {

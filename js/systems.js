@@ -12,7 +12,7 @@ import { examMorning } from './exam.js';
 import { fixedEvent, markFixed, randomEvent, runEvent } from './events.js';
 import { invalidateMap } from './town.js';
 import { aiMorningMsgs, aiProactive } from './ai/proactive.js';
-import { ensureWorld } from './ai/world.js';
+import { ensureHomes } from './homes.js';
 import { bankMonthEnd } from './bank.js';
 import { jobsMonthEnd, employed, ensureEmp } from './jobs.js';
 import { modal } from './ui.js';
@@ -40,7 +40,7 @@ bus.on('day:end', 30, (S, ctx) => {
 }, 'ốm đau');
 
 // ---------- đầu ngày ----------
-bus.on('day:start', 5, (S, ctx) => { ensureWorld(S); aiMorningMsgs(S, ctx); }, 'NPC: tâm trạng, tin đồn, thu nợ');
+bus.on('day:start', 5, (S, ctx) => { ensureHomes(S); aiMorningMsgs(S, ctx); }, 'NPC: tâm trạng, tin đồn, thu nợ');
 bus.on('day:start', 10, (S, ctx) => {
   if (seasonIdx(S) !== ctx.prevSeason) {
     invalidateMap();

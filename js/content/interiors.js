@@ -8,8 +8,8 @@ export const INTERIORS = {
     name: 'Ký túc xá — phòng 4 người', floor: 'tatami', alt: 'wood', wall: '#e9e1cf',
     rows: [
       '################',
-      '#BB.BB.,,KKSR,,#',
-      '#BB.BB.,,,,,,,,#',
+      '#B.b.c.d,KKSR,,#',
+      '#B.b.c.d,,,,,,,#',
       '#......,,,,,,,,#',
       '#..TTT.,,PPP,,L#',
       '#..TTT.,,,,,,,L#',
@@ -18,7 +18,11 @@ export const INTERIORS = {
       '################',
     ],
     obj: {
-      B: { kind: 'futon', name: 'Đệm ngủ', act: 'dorm', pick: ['Đi ngủ', 'Chợp mắt'], slot: { kind: 'sleep', at: 'on' }, solid: false },
+      // mỗi người một đệm; đệm B là của người chơi (NPC không nằm vào)
+      B: { kind: 'futon', name: 'Đệm của bạn', act: 'dorm', pick: ['Đi ngủ', 'Chợp mắt'], slot: { kind: 'mysleep', at: 'on' }, solid: false },
+      b: { kind: 'futon', name: 'Đệm của bạn cùng phòng', slot: { kind: 'sleep', at: 'on' }, solid: false },
+      c: { kind: 'futon', name: 'Đệm của bạn cùng phòng', slot: { kind: 'sleep', at: 'on' }, solid: false },
+      d: { kind: 'futon', name: 'Đệm của bạn cùng phòng', slot: { kind: 'sleep', at: 'on' }, solid: false },
       K: { kind: 'stove', name: 'Bếp', act: 'dorm', pick: ['Nấu ăn'], slot: { kind: 'cook', at: 'below' } },
       S: { kind: 'sink', name: 'Bồn rửa', act: 'dorm', pick: ['Nấu ăn'] },
       R: { kind: 'fridge', name: 'Tủ lạnh', act: 'dorm', pick: ['Nấu ăn'] },

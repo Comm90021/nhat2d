@@ -1,6 +1,6 @@
 // Thi JLPT: đăng ký → thi → chờ kết quả. Mỗi năm 2 kỳ (tháng 7 và tháng 12).
 import { doy, year, monthOf, yen, addLog, bestCert } from './state.js';
-import { LEVELS, levelLabel, questionsOfLevel, shuffleQ, answer, targetLevel } from './learning.js';
+import { LEVELS, levelLabel, questionsOfLevel, shuffleQ, answer, targetLevel, grantLevel } from './learning.js';
 import { KIND } from './content/jlpt.js';
 import { modal, chips, esc } from './ui.js';
 import { ask } from './quiz.js';
@@ -99,6 +99,7 @@ async function announce(S) {
   const html = `<div class="payslip">${rows}<div class="prow net"><span>Tổng</span><span>${Math.round(E.score * 100)}%</span></div></div>`;
   if (E.pass) {
     S.certs.push({ type: 'JLPT', lv: E.lv, day: S.day });
+    grantLevel(S.lang, E.lv);
     addLog(S, `ĐỖ JLPT ${E.lv}!`);
     sfx('end');
     S.mood = Math.min(100, S.mood + 15);
