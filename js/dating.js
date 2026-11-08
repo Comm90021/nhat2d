@@ -357,7 +357,7 @@ export async function stayOver(S, id) {
   const homeFree = uid && !there.length;
   const choices = [];
   if (uid) choices.push({ label: `🏠 Về nhà ${d.name}`, value: 'npc', disabled: !homeFree, reason: `⚠️ Đêm nay ở nhà có: ${there.map((x) => `${PEOPLE[x].name}${PEOPLE[x].id === d.spouse || x === d.spouse ? (PEOPLE[x].gender === 'm' ? ' (chồng)' : ' (vợ)') : ''}`).join(', ')}` });
-  if (S.home && S.home.unit) choices.push({ label: '🏠 Về nhà bạn', value: 'mine' });
+  if (S.home) choices.push({ label: '🏠 Về nhà bạn', value: 'mine' });
   choices.push({ label: '🏨 Khách sạn (¥8,000)', value: 'hotel', disabled: S.money < 8000, reason: 'Không đủ tiền' });
   choices.push({ label: '← Thôi', value: null, cancel: true });
   const where = await modal({ who: d.name, title: '🌙 Ở đâu?', text: 'Ký túc xá có người ở chung và có nội quy không cho người ngoài ở lại qua đêm.', choices });
@@ -384,7 +384,7 @@ export async function stayOver(S, id) {
   }
   if (affair) { S.affairs[id].nights++; await affairRisk(S, id, where, uid); }
   // ngủ lại, sáng dậy ở đó
-  S.wakeUnit = where === 'npc' ? uid : where === 'mine' ? S.home.unit : null;
+  S.wakeUnit = where === 'npc' ? uid : null;   // 'mine' → sáng dậy ở nhà mình (days.js tự đưa về nhà)
   const { sleep } = await import('./days.js');
   await sleep(S);
 }

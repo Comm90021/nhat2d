@@ -19,6 +19,7 @@ import { availableTest, testBlockReason, TESTS } from '../career.js';
 import { assetEffect } from '../finance.js';
 import { myPlace, workName } from '../jobs.js';
 import { homesVer, unitLabel } from '../homes.js';
+import { lotVer } from './lots.js';
 
 // ---------- bản đồ ----------
 const MAPS = {};
@@ -28,11 +29,17 @@ export function getMap(id) {
     else if (id === 'minato') MAPS[id] = buildIndustrial();
     else if (id === 'jutaku') MAPS[id] = buildResidential();
     else if (id === 'shotengai') MAPS[id] = buildShotengai();
-    else if (id.startsWith('int:')) { MAPS[id] = buildInterior(id.slice(4)); MAPS[id].ver = homesVer; }
-  } else if (id.startsWith('int:unit:') && MAPS[id].ver !== homesVer) {
-    // nội thất căn hộ phụ thuộc người ở → dựng lại khi thế giới đổi
-    MAPS[id] = buildInterior(id.slice(4)); MAPS[id].ver = homesVer; delete statics[id + ':0'];
+    else if (id.startsWith('int:')) MAPS[id] = buildInterior(id.slice(4));
+  } else if ((id.startsWith('int:unit:') || id.startsWith('int:house:')) && MAPS[id].ver !== homesVer + ':' + lotVer) {
+    // nội thất căn hộ / nhà riêng phụ thuộc người ở → dựng lại khi thế giới đổi
+    MAPS[id] = buildInterior(id.slice(4)); delete statics[id + ':0'];
+  } else if (id === 'jutaku' && MAPS[id].ver !== lotVer) {
+    // lô đất đổi trạng thái (mua đất, xây xong nhà) → vẽ lại khu dân cư
+    MAPS[id] = buildResidential();
+    for (const k in statics) if (k.startsWith('jutaku:')) delete statics[k];
   }
+  if (id === 'jutaku') MAPS[id].ver = lotVer;
+  if (id.startsWith('int:unit:') || id.startsWith('int:house:')) MAPS[id].ver = homesVer + ':' + lotVer;
   return MAPS[id];
 }
 const statics = {};
@@ -95,6 +102,32 @@ export function placeInUnit(uid) {
   S.dir = 'down';
   travelers.length = 0;
   return true;
+}
+
+// Thức dậy trong nhà riêng (一戸建て) trên một lô đất
+export function placeInHouse(lot) {
+  const S = G.S;
+  const fb = findBuilding(lot);
+  if (!fb) return false;
+  const e = entrance(fb.b);
+  const I = getMap('int:house:' + lot);
+  S.retStack = [];
+  S.ret = { map: fb.M.id, x: e.x, y: e.y + 2 };
+  S.map = I.id;
+  const bed = (I.slots.sleep || [])[0];
+  S.pos = bed ? { x: bed.x * TS + 8, y: (bed.y + 2) * TS + 4 } : { ...I.entry };
+  if (I.blockedTile(Math.floor(S.pos.x / TS), Math.floor((S.pos.y - 2) / TS))) S.pos = { ...I.entry };
+  S.dir = 'down';
+  travelers.length = 0;
+  return true;
+}
+// Về nhà của người chơi (căn hộ thuê/mua hoặc nhà riêng). Trả về false nếu chưa có nhà.
+export function placeHome(S) {
+  const h = S.home;
+  if (!h) return false;
+  if (h.unit) return placeInUnit(h.unit);
+  if (h.lot) return placeInHouse(h.lot);
+  return false;
 }
 
 // ---------- va chạm ----------

@@ -566,3 +566,107 @@ export const INTERIOR_OF = {
   ramen: 'ramen', care: 'care', teishoku: 'teishoku', bento: 'bento', it: 'it', electric: 'electric', parts: 'parts',
   logistics: 'logistics', site: 'site',
 };
+
+// ---------- v3.7: cơ quan nhà nước, hội trường cưới, văn phòng bất động sản ----------
+Object.assign(INTERIORS, {
+  cityhall: {
+    name: 'Tòa thị chính Hikari (市役所)', floor: 'tile', alt: 'carpet', wall: '#e8e6e0',
+    rows: [
+      '##################',
+      '#,,,,,,,,,,,,,,,,#',
+      '#CCCC.CCCC.CCCC..#',
+      '#..............K.#',
+      '#.cc.cc..cc.cc...#',
+      '#................#',
+      '#.cc.cc..cc.cc..P#',
+      '#h......D........#',
+      '##################',
+    ],
+    obj: {
+      C: { kind: 'counter', name: 'Quầy thủ tục', act: 'cityhall', slot: { kind: 'staff', at: 'above' } },
+      c: { kind: 'chair', name: 'Ghế chờ', solid: false, slot: { kind: 'patient', at: 'on' } },
+      K: { kind: 'board', name: 'Máy lấy số thứ tự', act: 'cityhall', pick: ['住民票', 'Thuế', 'thông tin'] },
+      P: { kind: 'plant', name: 'Chậu cây' },
+      h: { kind: 'shoes', name: 'Giá để ô', solid: false },
+    },
+  },
+  hellowork: {
+    name: 'Hello Work Hikari (ハローワーク)', floor: 'tile', wall: '#e3eef7',
+    rows: [
+      '##############',
+      '#,,,,,,,,,,,,#',
+      '#CCCC...CCCC.#',
+      '#............#',
+      '#pp.pp..pp.K.#',
+      '#............#',
+      '#cc.cc...D...#',
+      '##############',
+    ],
+    obj: {
+      C: { kind: 'counter', name: 'Quầy tư vấn việc làm', act: 'hellowork', slot: { kind: 'staff', at: 'above' } },
+      p: { kind: 'pcdesk', name: 'Máy tra cứu việc làm', act: 'hellowork', pick: ['Tra cứu', 'Tìm việc'], slot: { kind: 'study', at: 'below' } },
+      c: { kind: 'chair', name: 'Ghế chờ', solid: false, slot: { kind: 'patient', at: 'on' } },
+      K: { kind: 'board', name: 'Bảng tin tuyển dụng', act: 'hellowork', pick: ['Tra cứu', 'đào tạo'] },
+    },
+  },
+  immigration: {
+    name: 'Văn phòng Xuất nhập cảnh (入管 出張所)', floor: 'tile', wall: '#dfe4ea',
+    rows: [
+      '################',
+      '#,,,,,,,,,,,,,,#',
+      '#CCCCC..CCCCC..#',
+      '#..............#',
+      '#.cc.cc.cc.cc.K#',
+      '#..............#',
+      '#.cc.cc.cc.cc..#',
+      '#h......D......#',
+      '################',
+    ],
+    obj: {
+      C: { kind: 'counter', name: 'Quầy tiếp nhận hồ sơ', act: 'immigration', slot: { kind: 'staff', at: 'above' } },
+      c: { kind: 'chair', name: 'Ghế chờ', solid: false, slot: { kind: 'patient', at: 'on' } },
+      K: { kind: 'board', name: 'Bảng hướng dẫn thủ tục', act: 'immigration', pick: ['Hướng dẫn', 'tái nhập'] },
+      h: { kind: 'shoes', name: 'Giá để ô', solid: false },
+    },
+  },
+  wedding: {
+    name: 'Hội trường cưới Hoshizora (結婚式場)', floor: 'carpet', alt: 'wood', wall: '#fbf6f2',
+    rows: [
+      '##################',
+      '#P....AAAA.....P.#',
+      '#................#',
+      '#bbb.bbb..bbb.bbb#',
+      '#................#',
+      '#.TT..TT..TT..TT.#',
+      '#.TT..TT..TT..TT.#',
+      '#CC.....D........#',
+      '##################',
+    ],
+    obj: {
+      A: { kind: 'counter', name: 'Lễ đài (祭壇)', act: 'wedding', pick: ['lễ', 'Lễ', 'cưới'] },
+      b: { kind: 'bench', name: 'Ghế dự lễ', solid: false, slot: { kind: 'rest', at: 'on' } },
+      T: { kind: 'table', name: 'Bàn tiệc', slot: { kind: 'eat', at: 'below' } },
+      C: { kind: 'counter', name: 'Quầy tư vấn cưới', act: 'wedding', slot: { kind: 'staff', at: 'above' } },
+      P: { kind: 'plant', name: 'Hoa trang trí' },
+    },
+  },
+  fudosan: {
+    name: 'Bất động sản Hikari (不動産)', floor: 'tile', wall: '#f4f1e6',
+    rows: [
+      '############',
+      '#KK,,,,,,KK#',
+      '#..CCCC....#',
+      '#..........#',
+      '#.cc....cc.#',
+      '#h...D.....#',
+      '############',
+    ],
+    obj: {
+      C: { kind: 'counter', name: 'Quầy tư vấn nhà', act: 'fudosan', slot: { kind: 'staff', at: 'above' } },
+      K: { kind: 'board', name: 'Bảng rao nhà (物件情報)', act: 'fudosan', pick: ['Xem', 'Thuê', 'Mua'] },
+      c: { kind: 'chair', name: 'Ghế chờ', solid: false, slot: { kind: 'patient', at: 'on' } },
+      h: { kind: 'shoes', name: 'Giá để ô', solid: false },
+    },
+  },
+});
+Object.assign(INTERIOR_OF, { cityhall: 'cityhall', hellowork: 'hellowork', immigration: 'immigration', wedding: 'wedding', fudosan: 'fudosan' });

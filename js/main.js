@@ -11,6 +11,8 @@ import { openCharSheet } from './charsheet.js';
 import { openWait } from './wait.js';
 import { openHack, enforceLocks } from './hack.js';
 import { hackOn } from './hackflag.js';
+import { ensureHousing, homeLabel } from './housing.js';
+import './gov.js';
 import { ensureHomes } from './homes.js';
 import { ensureEmp } from './jobs.js';
 import { apptCheck } from './ai/proactive.js';
@@ -174,6 +176,7 @@ const HELP_HTML = `<ul class="help">
 
 function startPlaying() {
   ensureHomes(G.S);
+  ensureHousing(G.S);
   ensureEmp(G.S);
   ensureAttr(G.S);
   for (const c of G.S.certs || []) if (c.type === 'JLPT') grantLevel(G.S.lang, c.lv);
@@ -190,6 +193,8 @@ function continueGame() {
   G.S = S;
   if (!S.pos) placePlayer('dorm');
   startPlaying();
+  // vị trí đã lưu nằm trong nội thất cũ / bản đồ đã mở rộng: kiểm tra lại
+  try { const M = curMap(S); if (!M || (M.blockedTile && M.blockedTile(Math.floor(S.pos.x / 16), Math.floor((S.pos.y - 2) / 16)))) placePlayer('dorm'); } catch (e) { placePlayer('dorm'); }
   toast(`Chào mừng trở lại, ${esc(S.name)}!`);
 }
 
@@ -203,7 +208,7 @@ function bookHtml(S) {
     ...(S.certs || []).map((c) => `📜 ${c.type} ${c.lv}`),
   ].filter(Boolean);
   const log = S.log.slice(0, 10).map((l) => `<li><span class="dim">Ngày ${l.d}:</span> ${esc(l.t)}</li>`).join('');
-  return `<div class="payslip">${row('💴 Tiền mặt', yen(S.money))}${row('🧾 Lương chờ lĩnh', yen(S.wage))}${row('🏦 Nợ ở quê', vnd(Math.max(0, S.debt)))}${row('💸 Đã gửi về', vnd(S.stats.sentVnd))}${row('📅 Thời gian ở Nhật', `Năm ${year(S)} · ${S.day} ngày`)}${st}${row('👵 Câu bà Sato đã dạy', S.lang.phrases.length)}${row('🏭 Ca đã làm / đi muộn / nghỉ', `${S.stats.shifts} / ${S.stats.lates} / ${S.stats.absences}`)}</div>
+  return `<div class="payslip">${row('💴 Tiền mặt', yen(S.money))}${row('🧾 Lương chờ lĩnh', yen(S.wage))}${row('🏦 Nợ ở quê', vnd(Math.max(0, S.debt)))}${row('💸 Đã gửi về', vnd(S.stats.sentVnd))}${row('📅 Thời gian ở Nhật', `Năm ${year(S)} · ${S.day} ngày`)}${row('🏠 Chỗ ở', esc(homeLabel(S)))}${st}${row('👵 Câu bà Sato đã dạy', S.lang.phrases.length)}${row('🏭 Ca đã làm / đi muộn / nghỉ', `${S.stats.shifts} / ${S.stats.lates} / ${S.stats.absences}`)}</div>
     <h3>🛂 Visa & nghề nghiệp</h3>${journeyHtml(S)}
     <h3>🏡 Gia đình & tình cảm</h3>${familyHtml(S)}${loveHtml(S)}
     <p class="dim">📊 Chỉ số phụ, may mắn, tay nghề, tín dụng: xem 👤 <b>Hồ sơ nhân vật</b> (phím C).</p>${hackOn(S) ? '<p class="hackpct">🛠️ Save có dùng chế độ hack</p>' : ''}

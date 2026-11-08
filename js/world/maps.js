@@ -1,6 +1,7 @@
 // Bản đồ ngoài trời dưới dạng dữ liệu: thị trấn Hikari + khu công nghiệp Minato.
 import { TS, hash2, rect, disc } from '../pixel.js';
 import { T, drawTile, drawBuilding, drawTree, drawLamp } from './tiles.js';
+import { LOTS, LOT_START, PLAN_LOOK, lotState } from './lots.js';
 
 export function makeMap(id, w, h, fill = T.GRASS) {
   const tiles = new Uint8Array(w * h).fill(fill);
@@ -183,14 +184,24 @@ export function buildIndustrial() {
 // ======================= KHU DÂN CƯ HIKARI-DAI =======================
 // Các tòa manshon nơi người Nhật trong thị trấn sống; nối với thị trấn bằng đường bộ ở mép đông.
 export function buildResidential() {
-  const M = makeMap('jutaku', 46, 30);
+  const M = makeMap('jutaku', 46, 43);
   M.name = 'Khu dân cư Hikari-dai';
   M.buildings = [
     { id: 'hikari', name: 'Hikari Heights', jp: '光ハイツ', x: 2, y: 2, w: 8, h: 9, door: 6, wall: '#efe7da', roof: '#7d6a58', style: 'apt' },
     { id: 'sakura', name: 'Sakura Mansion', jp: 'さくらマンション', x: 12, y: 2, w: 8, h: 9, door: 16, wall: '#f3e3e6', roof: '#9c5b6b', style: 'apt' },
     { id: 'residence', name: 'Hikari-dai Residence', jp: '光台レジデンス', x: 26, y: 1, w: 10, h: 10, door: 31, wall: '#e3e8ee', roof: '#45586e', style: 'apt' },
     { id: 'fudosan', name: 'Bất động sản Hikari', jp: '不動産', x: 38, y: 6, w: 6, h: 5, door: 40, wall: '#f4f1e6', roof: '#3f7a5a', style: 'shop' },
+    { id: 'midori', name: 'Midori Court', jp: 'みどりコート', x: 2, y: 32, w: 9, h: 8, door: 6, wall: '#e4efe2', roof: '#3f6b55', style: 'apt' },
+    { id: 'aoba', name: 'Aoba Apāto', jp: 'あおばアパート', x: 12, y: 34, w: 8, h: 6, door: 15, wall: '#f1ead6', roof: '#7a6248', style: 'apt' },
   ];
+  // nhà riêng / đất trống trên các lô (theo save)
+  for (const [id, L] of Object.entries(LOTS)) {
+    const st = lotState[id] || { kind: LOT_START[id] };
+    const door = L.x + Math.floor(L.w / 2);
+    const look = PLAN_LOOK[st.plan] || { wall: ['#efe4d2', '#e8eef2', '#f3ead9'][L.x % 3], roof: ['#8a4b3a', '#4a5a6a', '#5d4a3a'][L.y % 3] };
+    const name = st.kind === 'land' ? 'Đất bán (売地)' : st.kind === 'building' ? 'Công trình nhà riêng' : st.kind === 'player' ? 'Nhà của bạn' : st.kind === 'used' ? 'Nhà cũ đang bán' : `Nhà ${st.family || 'riêng'}`;
+    M.buildings.push({ id, name, jp: st.kind === 'land' ? '売地' : st.kind === 'used' ? '売家' : st.kind === 'building' ? '建築中' : '', x: L.x, y: L.y, w: L.w, h: L.h, door, wall: look.wall, roof: look.roof, style: st.kind === 'land' ? 'lot' : st.kind === 'building' ? 'construct' : 'house', lot: true });
+  }
   M.spots = [{ id: 'jpark', tx: 10, ty: 22, name: 'Công viên Hikari-dai', interact: true }];
   M.aiSpots = { jpark: [[9, 22], [11, 22], [10, 23], [12, 21], [8, 21]] };
   for (let x = 0; x < M.w; x++) { M.set(x, 12, T.WALK); M.set(x, 13, T.ROAD); M.set(x, 14, T.ROAD); M.set(x, 15, T.WALK); }
@@ -206,23 +217,28 @@ export function buildResidential() {
   for (let y = 16; y <= 24; y++) M.set(10, y, T.PATH);
   for (let y = 19; y <= 22; y++) for (let x = 14; x <= 17; x++) M.set(x, y, T.WATER);
   for (let y = 18; y <= 27; y++) for (let x = 27; x <= 43; x++) if ((x - 27) % 6 === 0 || (y - 18) % 5 === 0) M.set(x, y, T.PATH);
+  // phần mở rộng phía nam: vỉa hè ngang, dãy chung cư mới + lô nhà riêng, lối đi dưới cùng
+  for (let x = 0; x < M.w; x++) if (M.at(x, 29) === T.GRASS) M.set(x, 29, T.WALK);
+  for (let x = 1; x < M.w - 1; x++) if (M.at(x, 41) === T.GRASS) M.set(x, 41, T.PATH);
+  for (let y = 30; y <= 40; y++) { M.set(26, y, T.PATH); }
   placeBuildings(M);
   const keep = new Set(), reserve = reserveFn(keep);
   for (const b of M.buildings) reserve(b.door, b.y + b.h);
   for (const s of M.spots) reserve(s.tx, s.ty);
   for (const list of Object.values(M.aiSpots)) for (const [x, y] of list) reserve(x, y, 0);
   for (let y = 17; y <= 28; y++) for (let x = 26; x <= 44; x++) keep.add(x + ',' + y);
-  plantTrees(M, keep, 0.03, (x, y) => y >= 17 && x < 20);
+  for (let y = 30; y <= 41; y++) for (let x = 0; x <= 45; x++) if (x < 2 || (x > 10 && x < 12) || x > 19) keep.add(x + ',' + y);
+  plantTrees(M, keep, 0.03, (x, y) => y >= 17 && y < 29 && x < 20);
   for (const x of [4, 12, 19, 28, 36, 43]) { M.lamps.push([x, 12]); M.lamps.push([x, 15]); }
+  for (const x of [4, 14, 28, 36, 43]) M.lamps.push([x, 29]);
   M.lamps.push([10, 20]);
-  M.parkTree = (x, y) => y >= 17 && x < 20;
-  M.walkLanes = { h: [[12, 0, 45], [15, 0, 45]], v: [[21, 0, 29], [24, 0, 29]] };
-  M.carLanes = [{ h: true, at: 13, d: -1, len: 46 }, { h: true, at: 14, d: 1, len: 46 }, { h: false, at: 22, d: 1, len: 30 }, { h: false, at: 23, d: -1, len: 30 }];
+  M.parkTree = (x, y) => y >= 17 && y < 29 && x < 20;
+  M.walkLanes = { h: [[12, 0, 45], [15, 0, 45], [29, 0, 45], [41, 1, 44]], v: [[21, 0, 42], [24, 0, 42]] };
+  M.carLanes = [{ h: true, at: 13, d: -1, len: 46 }, { h: true, at: 14, d: 1, len: 46 }, { h: false, at: 22, d: 1, len: 43 }, { h: false, at: 23, d: -1, len: 43 }];
   M.edges = [{ side: 'e', to: 'town', y0: 12, y1: 15, name: '🏘️ Về thị trấn Hikari' }];
   M.decor = (c, si) => {
-    // ghế đá công viên, biển khu đất bán
+    // ghế đá công viên
     rect(c, '#8a5a35', 8 * TS + 1, 20 * TS + 6, 14, 3); rect(c, '#6b4428', 8 * TS + 1, 20 * TS + 3, 14, 2);
-    rect(c, '#f4f1e6', 34 * TS, 17 * TS + 4, 18, 10); rect(c, '#c0392b', 34 * TS + 2, 17 * TS + 6, 14, 2); rect(c, '#555', 34 * TS + 8, 17 * TS + 14, 2, 4);
     for (const [lx, ly] of M.lamps) drawLamp(c, lx, ly);
   };
   return M;
@@ -231,7 +247,7 @@ export function buildResidential() {
 // ======================= PHỐ KAWABATA (bên kia cầu) =======================
 // Phố mua sắm – giải trí: cà phê, karaoke, rạp phim, game center, trung tâm mua sắm, gym, thư viện, sentō, izakaya.
 export function buildShotengai() {
-  const M = makeMap('shotengai', 50, 34);
+  const M = makeMap('shotengai', 50, 40);
   M.name = 'Phố Kawabata';
   M.buildings = [
     { id: 'cafe', name: 'Cà phê Komorebi', jp: 'カフェ', x: 1, y: 4, w: 7, h: 7, door: 4, wall: '#f3e6d3', roof: '#6b4a35', style: 'ramen' },
@@ -243,6 +259,11 @@ export function buildShotengai() {
     { id: 'library', name: 'Thư viện thành phố', jp: '図書館', x: 28, y: 16, w: 8, h: 7, door: 32, wall: '#ece3cf', roof: '#5d7a4c', style: 'hall' },
     { id: 'sento', name: 'Nhà tắm Matsu-no-yu', jp: '銭湯', x: 37, y: 16, w: 6, h: 7, door: 40, wall: '#efe2c8', roof: '#2f5d8a', style: 'shrine' },
     { id: 'izakaya', name: 'Izakaya Torikizoku-ya', jp: '居酒屋', x: 44, y: 16, w: 5, h: 7, door: 46, wall: '#efe2c8', roof: '#4a2a22', style: 'ramen' },
+    // dãy cơ quan nhà nước + hội trường cưới (phía nam phố)
+    { id: 'cityhall', name: 'Tòa thị chính', jp: '市役所', x: 1, y: 27, w: 11, h: 8, door: 6, wall: '#e8e6e0', roof: '#4b5563', style: 'office' },
+    { id: 'hellowork', name: 'Hello Work', jp: 'ハローワーク', x: 13, y: 29, w: 7, h: 6, door: 16, wall: '#e3eef7', roof: '#2f6db5', style: 'hall' },
+    { id: 'wedding', name: 'Hội trường cưới Hoshizora', jp: '結婚式場', x: 27, y: 27, w: 10, h: 8, door: 32, wall: '#fbf6f2', roof: '#c77d93', style: 'hall' },
+    { id: 'immigration', name: 'Văn phòng Xuất nhập cảnh', jp: '入管 出張所', x: 39, y: 28, w: 10, h: 7, door: 44, wall: '#dfe4ea', roof: '#33465c', style: 'office' },
   ];
   M.spots = [];
   M.aiSpots = { shotengai_street: [[6, 13], [12, 13], [30, 13], [36, 13], [44, 13]] };
@@ -251,18 +272,17 @@ export function buildShotengai() {
   // đường xe đi dọc, phố đi bộ (shōtengai) nằm ngang
   for (let y = 2; y < M.h; y++) { M.set(22, y, T.WALK); M.set(25, y, T.WALK); M.set(23, y, T.ROAD); M.set(24, y, T.ROAD); }
   for (let x = 0; x < M.w; x++) for (let y = 11; y <= 14; y++) if (x < 22 || x > 25) M.set(x, y, T.PLAZA);
-  for (let x = 0; x < M.w; x++) if (x < 22 || x > 25) { M.set(x, 23, T.WALK); M.set(x, 24, T.WALK); }
-  for (const x of [23, 24]) for (const y of [12, 13, 23]) M.zebra[x + ',' + y] = 'v';
+  for (let x = 0; x < M.w; x++) if (x < 22 || x > 25) { M.set(x, 23, T.WALK); M.set(x, 24, T.WALK); M.set(x, 36, T.WALK); M.set(x, 37, T.WALK); }
+  for (const x of [23, 24]) for (const y of [12, 13, 23, 36]) M.zebra[x + ',' + y] = 'v';
   placeBuildings(M);
   const keep = new Set(), reserve = reserveFn(keep);
   for (const b of M.buildings) reserve(b.door, b.y + b.h);
-  // khu đất cho tòa thị chính, Hello Work, hội trường cưới (bản cập nhật sau)
-  for (let y = 25; y < M.h; y++) for (let x = 0; x < M.w; x++) keep.add(x + ',' + y);
+  for (let y = 25; y <= 37; y++) for (let x = 0; x < M.w; x++) keep.add(x + ',' + y);
   plantTrees(M, keep, 0.02, () => false);
-  for (const x of [3, 9, 17, 30, 38, 46]) { M.lamps.push([x, 11]); M.lamps.push([x, 14]); }
+  for (const x of [3, 9, 17, 30, 38, 46]) { M.lamps.push([x, 11]); M.lamps.push([x, 14]); M.lamps.push([x, 36]); }
   M.parkTree = () => false;
-  M.walkLanes = { h: [[12, 0, 49], [13, 0, 49], [23, 0, 49]], v: [[22, 2, 33], [25, 2, 33]] };
-  M.carLanes = [{ h: false, at: 23, d: 1, len: 34 }, { h: false, at: 24, d: -1, len: 34 }];
+  M.walkLanes = { h: [[12, 0, 49], [13, 0, 49], [23, 0, 49], [37, 0, 49]], v: [[22, 2, 39], [25, 2, 39]] };
+  M.carLanes = [{ h: false, at: 23, d: 1, len: 40 }, { h: false, at: 24, d: -1, len: 40 }];
   M.edges = [{ side: 'n', to: 'town', x0: 22, x1: 25, name: '🌉 Qua cầu về thị trấn' }];
   M.decor = (c) => {
     // mái che phố đi bộ (アーケード)

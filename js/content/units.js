@@ -2,13 +2,17 @@
 // Tất cả sinh bằng code từ thông số dưới đây (không vẽ tay từng phòng).
 
 // floors × per = số phòng. kind: ai ở (jp đơn thân / jp gia đình / người Việt). type: loại căn hộ theo tầng.
+// rent: tiền thuê/tháng · price: giá mua căn cũ (0 = không bán) · foreignOk: tỉ lệ chủ nhà chấp nhận người nước ngoài
+// zero: phòng "0 cọc 0 lễ" (ゼロゼロ物件) · fresh: tòa mới xây, chưa có ai ở
 export const BUILDINGS = {
-  hikari: { map: 'jutaku', name: 'Hikari Heights', jp: '光ハイツ', floors: 3, per: 4, type: '1K', rent: 62000, price: 9800000, who: 'single' },
-  sakura: { map: 'jutaku', name: 'Sakura Mansion', jp: 'さくらマンション', floors: 3, per: 4, type: '1LDK', rent: 85000, price: 18500000, who: 'couple' },
-  residence: { map: 'jutaku', name: 'Hikari-dai Residence', jp: '光台レジデンス', floors: 3, per: 3, type: '3LDK', rent: 128000, price: 32000000, who: 'family' },
-  apt: { map: 'minato', name: 'Chung cư Minato', jp: 'みなとアパート', floors: 4, per: 4, type: '1K', rent: 42000, price: 0, who: 'vn' },
+  hikari: { map: 'jutaku', name: 'Hikari Heights', jp: '光ハイツ', floors: 3, per: 4, type: '1K', rent: 62000, price: 9800000, who: 'single', foreignOk: 0.55 },
+  sakura: { map: 'jutaku', name: 'Sakura Mansion', jp: 'さくらマンション', floors: 3, per: 4, type: '1LDK', rent: 85000, price: 18500000, who: 'couple', foreignOk: 0.5 },
+  residence: { map: 'jutaku', name: 'Hikari-dai Residence', jp: '光台レジデンス', floors: 3, per: 3, type: '3LDK', rent: 128000, price: 32000000, who: 'family', foreignOk: 0.4 },
+  apt: { map: 'minato', name: 'Chung cư Minato', jp: 'みなとアパート', floors: 4, per: 4, type: '1K', rent: 42000, price: 0, who: 'vn', foreignOk: 1 },
+  midori: { map: 'jutaku', name: 'Midori Court', jp: 'みどりコート', floors: 3, per: 3, type: '2LDK', rent: 98000, price: 23800000, who: 'new', foreignOk: 0.7, fresh: true },
+  aoba: { map: 'jutaku', name: 'Aoba Apāto', jp: 'あおばアパート', floors: 2, per: 4, type: '1K', rent: 46000, price: 0, who: 'new', foreignOk: 1, zero: true, fresh: true },
 };
-export const TYPE_NAME = { '1K': '1K (1 phòng + bếp)', '1LDK': '1LDK (1 phòng ngủ + phòng khách bếp)', '3LDK': '3LDK (3 phòng ngủ + phòng khách bếp)' };
+export const TYPE_NAME = { '1K': '1K (1 phòng + bếp)', '1LDK': '1LDK (1 phòng ngủ + phòng khách bếp)', '2LDK': '2LDK (2 phòng ngủ + phòng khách bếp)', '3LDK': '3LDK (3 phòng ngủ + phòng khách bếp)' };
 
 export const unitId = (bid, floor, i) => `${bid}-${floor}0${i}`;
 export function unitsOf(bid) {
@@ -81,6 +85,16 @@ const TEMPLATES = {
     '#hh..D.......#',
     '##############',
   ],
+  '2LDK': [
+    '################',
+    '#BB..#bb..KKSR.#',
+    '#BB..#bb.......#',
+    '#X...#X...TTT..#',
+    '##.#####.......#',
+    '#..........OO.X#',
+    '#hh....D.......#',
+    '################',
+  ],
   '3LDK': [
     '##################',
     '#BB..#bb..#KKSR..#',
@@ -100,25 +114,74 @@ const DECOR = {
   pc: { kind: 'pcdesk', name: 'Bàn máy tính' },
   desk: { kind: 'desk', name: 'Bàn học' },
 };
+// Đồ dùng trong nhà. mine = nhà của người chơi → đồ vật dùng được (ngủ, nấu, học, gọi về nhà…)
+function homeObj(mine) {
+  const a = (pick) => (mine ? { act: 'myhome', pick } : {});
+  return {
+    B: { kind: 'bed', name: mine ? 'Giường của bạn' : 'Giường', slot: { kind: 'sleep', at: 'on' }, solid: false, ...a(['Đi ngủ', 'Chợp mắt']) },
+    b: { kind: 'bed', name: 'Giường', slot: { kind: 'sleep', at: 'on' }, solid: false, ...a(['Đi ngủ', 'Chợp mắt']) },
+    c: { kind: 'futon', name: 'Đệm trẻ con', solid: false },
+    K: { kind: 'stove', name: 'Bếp', slot: { kind: 'cook', at: 'below' }, ...a(['Nấu']) },
+    S: { kind: 'sink', name: 'Bồn rửa', ...a(['Nấu']) },
+    R: { kind: 'fridge', name: 'Tủ lạnh', ...a(['Nấu']) },
+    T: { kind: 'lowtable', name: 'Bàn ăn', slot: { kind: 'rest', at: 'below' }, ...a(['Gọi video', 'Tự học', 'Ăn tối', 'Rủ', 'Mời']) },
+    O: { kind: 'sofa', name: 'Sofa', slot: { kind: 'rest', at: 'below' }, ...a(['Xem', 'Nghỉ', 'Ôm']) },
+    h: { kind: 'shoes', name: 'Kệ giày (genkan)', solid: false, ...a(['Nhà của tôi']) },
+    t: { kind: 'lowtable', name: 'Bàn trà (phòng tatami)', slot: { kind: 'rest', at: 'below' }, ...a(['Gọi video', 'Tự học', 'Trà']) },
+    a: { kind: 'bath', name: 'Bồn tắm (お風呂)', ...a(['Tắm']) },
+  };
+}
+const decorate = (rows, obj, pickDecor) => {
+  let n = 0;
+  const letters = ['x', 'y', 'z', 'w', 'v'];
+  return rows.map((r) => r.replace(/X/g, () => { const L = letters[n % letters.length]; obj[L] = DECOR[pickDecor(n)] || DECOR.plant; n++; return L; }));
+};
 // pickDecor(i) trả về key trong DECOR cho đồ trang trí thứ i (theo tính cách chủ nhà)
-export function unitDef(uid, label, pickDecor) {
+export function unitDef(uid, label, pickDecor, mine = false) {
   const { bid, room } = parseUnit(uid);
   const B = BUILDINGS[bid];
-  const rows = TEMPLATES[B.type].map((r) => r);
-  let n = 0;
-  const obj = {
-    B: { kind: 'bed', name: 'Giường', slot: { kind: 'sleep', at: 'on' }, solid: false },
-    b: { kind: 'bed', name: 'Giường', slot: { kind: 'sleep', at: 'on' }, solid: false },
-    c: { kind: 'futon', name: 'Đệm trẻ con', solid: false },
-    K: { kind: 'stove', name: 'Bếp', slot: { kind: 'cook', at: 'below' } },
-    S: { kind: 'sink', name: 'Bồn rửa' },
-    R: { kind: 'fridge', name: 'Tủ lạnh' },
-    T: { kind: 'lowtable', name: 'Bàn ăn', slot: { kind: 'rest', at: 'below' } },
-    O: { kind: 'sofa', name: 'Sofa', slot: { kind: 'rest', at: 'below' } },
-    h: { kind: 'shoes', name: 'Kệ giày (genkan)', solid: false },
-  };
-  // mỗi chữ X trở thành một chữ thường riêng (x, y, z, w…) để có đồ khác nhau
-  const letters = ['x', 'y', 'z', 'w', 'v'];
-  const out = rows.map((r) => r.replace(/X/g, () => { const L = letters[n % letters.length]; obj[L] = DECOR[pickDecor(n)] || DECOR.plant; n++; return L; }));
-  return { name: `Phòng ${room} · ${B.name}${label ? ' — nhà ' + label : ''}`, floor: 'wood', alt: 'tatami', wall: '#efe9de', rows: out, obj };
+  const obj = homeObj(mine);
+  const out = decorate(TEMPLATES[B.type], obj, pickDecor);
+  return { name: `Phòng ${room} · ${B.name}${mine ? ' — nhà bạn' : label ? ' — nhà ' + label : ''}`, floor: 'wood', alt: 'tatami', wall: '#efe9de', rows: out, obj };
+}
+
+// ---------- nhà riêng (一戸建て) trên các lô đất ----------
+export const HOUSE_TEMPLATES = {
+  compact: [
+    '##############',
+    '#BB..#KKSR...#',
+    '#BB..#.......#',
+    '#X...#..TTT..#',
+    '##.###.......#',
+    '#a.........OO#',
+    '#hh...D......#',
+    '##############',
+  ],
+  family: [
+    '##################',
+    '#BB..#bb..#KKSR..#',
+    '#BB..#bb.X#......#',
+    '#X...#....#.TTTT.#',
+    '##.#####.##......#',
+    '#a...............#',
+    '#cc.X........OO.X#',
+    '#hh.....D........#',
+    '##################',
+  ],
+  japanese: [
+    '##################',
+    '#BB..#,,,,,#KKSR.#',
+    '#BB..#,,tt,#.....#',
+    '#X...#,,tt,#.TTT.#',
+    '##.###,,,,,#.....#',
+    '#a....,,,,,......#',
+    '#..............OO#',
+    '#hh.....D.......X#',
+    '##################',
+  ],
+};
+export function houseDef(lot, plan, label, pickDecor, mine = false) {
+  const obj = homeObj(mine);
+  const out = decorate(HOUSE_TEMPLATES[plan] || HOUSE_TEMPLATES.family, obj, pickDecor);
+  return { name: `${mine ? 'Nhà của bạn' : 'Nhà ' + (label || 'riêng')} (一戸建て)`, floor: 'wood', alt: 'tatami', wall: '#f1eadc', rows: out, obj };
 }

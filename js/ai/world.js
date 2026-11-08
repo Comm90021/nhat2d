@@ -24,7 +24,11 @@ export const AI_PLACES = {
   river: { map: 'town', kind: 'leisure', spot: 'river', name: 'Bờ sông' },
   mpark: { map: 'minato', kind: 'leisure', spot: 'mpark', name: 'Công viên Minato' },
   jpark: { map: 'jutaku', kind: 'leisure', spot: 'jpark', name: 'Công viên Hikari-dai' },
-  fudosan: { map: 'jutaku', kind: 'service', open: [10, 19], name: 'Bất động sản Hikari' },
+  fudosan: { map: 'jutaku', kind: 'service', open: [10, 19], interior: 'fudosan', name: 'Bất động sản Hikari' },
+  cityhall: { map: 'shotengai', kind: 'service', open: [8, 17], interior: 'cityhall', name: 'Tòa thị chính Hikari' },
+  hellowork: { map: 'shotengai', kind: 'service', open: [8, 17], interior: 'hellowork', name: 'Hello Work Hikari' },
+  immigration: { map: 'shotengai', kind: 'service', open: [9, 16], interior: 'immigration', name: 'Văn phòng Xuất nhập cảnh' },
+  wedding: { map: 'shotengai', kind: 'leisure', open: [10, 20], interior: 'wedding', name: 'Hội trường cưới Hoshizora' },
   // phố Kawabata
   cafe: { map: 'shotengai', kind: 'food', open: [8, 21], interior: 'cafe', name: 'Cà phê Komorebi' },
   karaoke: { map: 'shotengai', kind: 'leisure', open: [12, 24], interior: 'karaoke', name: 'Karaoke Utaya' },

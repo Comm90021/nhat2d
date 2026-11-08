@@ -4,7 +4,9 @@ import { rnd } from './ai/rules.js';
 import { AI_PLACES, PEOPLE, ensureWorld, makeTraits, makeLook, makeLines, likesOf, pick, between } from './ai/world.js';
 import { JP } from './content/names.js';
 import { INTERIOR_OF } from './content/interiors.js';
-import { BUILDINGS, unitsOf, unitDef, corridorDef, parseUnit, TYPE_NAME } from './content/units.js';
+import { BUILDINGS, unitsOf, unitDef, houseDef, corridorDef, parseUnit, TYPE_NAME } from './content/units.js';
+import { G } from './state.js';
+import { LOTS } from './world/lots.js';
 import { DYNAMIC } from './world/interior.js';
 import { stateOf, moodToday, moodInfo, companionsText } from './ai/sim.js';
 import { acceptInvite, dayRoll, reasons, chanceWord } from './ai/rules.js';
@@ -23,17 +25,25 @@ for (const bid of Object.keys(BUILDINGS)) {
 DYNAMIC.mansion = (bid) => corridorDef(bid);
 let worldRef = null;   // S.world hiện tại (để dựng nội thất căn hộ theo người ở)
 export let homesVer = 0;
+// đồ trang trí theo tính cách chủ nhà
+const decorFor = (owner) => (i) => {
+  const t = owner && owner.traits;
+  if (!t) return ['tv', 'books', 'plant', 'desk', 'plant'][i % 5];
+  const opts = [t.opn > 0.55 ? 'books' : 'plant', t.ext > 0.5 ? 'tv' : 'books', owner.job && /it|electric/.test(owner.job.place) ? 'pc' : 'plant', owner.student ? 'desk' : 'tv', 'plant'];
+  return opts[i % opts.length];
+};
+const mineUnit = (uid) => !!(G.S && G.S.home && G.S.home.unit === uid);
 DYNAMIC.unit = (uid) => {
   const ids = (worldRef && worldRef.units[uid]) || [];
   const owner = ids[0] && PEOPLE[ids[0]];
-  const t = owner && owner.traits;
-  // đồ trang trí theo tính cách chủ nhà
-  const pickDecor = (i) => {
-    if (!t) return 'plant';
-    const opts = [t.opn > 0.55 ? 'books' : 'plant', t.ext > 0.5 ? 'tv' : 'books', owner.job && /it|electric/.test(owner.job.place) ? 'pc' : 'plant', owner.student ? 'desk' : 'tv', 'plant'];
-    return opts[i % opts.length];
-  };
-  return unitDef(uid, owner ? plate(owner) : '', pickDecor);
+  if (mineUnit(uid)) return unitDef(uid, '', decorFor(null), true);
+  return unitDef(uid, owner ? plate(owner) : '', decorFor(owner));
+};
+// nhà riêng trên lô đất: house:lotN
+DYNAMIC.house = (lot) => {
+  const S = G.S, st = (S && S.housing && S.housing.lots[lot]) || {};
+  const mine = !!(S && S.home && S.home.lot === lot);
+  return houseDef(lot, st.plan || 'family', st.family, decorFor(null), mine);
 };
 
 // Tên trên biển cửa: họ (người Nhật) hoặc tên (người Việt)
@@ -201,11 +211,18 @@ export function ensureHomes(S) { const W = ensureWorld(S); augmentWorld(S); migr
 export function applyHomes(S) {
   const W = S.world;
   worldRef = W;
-  for (const k of Object.keys(AI_PLACES)) if (k.startsWith('u:')) delete AI_PLACES[k];
+  for (const k of Object.keys(AI_PLACES)) if (k.startsWith('u:') || k.startsWith('h:')) delete AI_PLACES[k];
   for (const [uid, members] of Object.entries(W.units || {})) {
     const { bid, room } = parseUnit(uid), B = BUILDINGS[bid];
+    if (!B) continue;
     AI_PLACES['u:' + uid] = { map: B.map, kind: 'home', interior: 'unit:' + uid, name: `phòng ${room} ${B.name}`, building: bid };
     for (const id of members) if (PEOPLE[id]) PEOPLE[id].home = 'u:' + uid;
+  }
+  // nhà riêng của người chơi (người yêu / vợ chồng về ở cùng)
+  for (const [lot, members] of Object.entries(W.houses || {})) {
+    if (!LOTS[lot]) continue;
+    AI_PLACES['h:' + lot] = { map: 'jutaku', kind: 'home', interior: 'house:' + lot, name: 'nhà riêng của bạn', building: lot };
+    for (const id of members) if (PEOPLE[id]) PEOPLE[id].home = 'h:' + lot;
   }
   for (const [id, H] of Object.entries(W.hh || {})) {
     const d = PEOPLE[id];
@@ -248,6 +265,7 @@ export function familyText(S, id) {
 export async function mailbox(S, bid) {
   const B = BUILDINGS[bid];
   const rows = unitsOf(bid).reverse().map((u) => {
+    if (S.home && S.home.unit === u.uid) return `<div class="prow"><span>${u.room}</span><span><b>🏠 Bạn</b>${residents(S, u.uid).length ? ' + ' + residents(S, u.uid).map((id) => esc(PEOPLE[id].name)).join(', ') : ''}</span></div>`;
     const r = residents(S, u.uid);
     const isMet = (id) => !!(S.npc && S.npc[id] && S.npc[id].met);
     const met = r.filter(isMet), unmet = r.filter((id) => !isMet(id));
@@ -264,7 +282,7 @@ export async function ringBell(S, uid) {
   const { room } = parseUnit(uid);
   if (S.home && S.home.unit === uid) { await enterUnit(uid); return; }
   const all = residents(S, uid);
-  if (!all.length) { await modal({ title: `🚪 Phòng ${room}`, text: 'Cửa dán tờ 「入居者募集」 — phòng đang cho thuê. Muốn thuê thì hỏi văn phòng bất động sản (sẽ mở ở bản sau).' }); return; }
+  if (!all.length) { await modal({ title: `🚪 Phòng ${room}`, text: 'Cửa dán tờ 「入居者募集」 — phòng đang cho thuê. Muốn thuê / mua thì hỏi 🏠 Bất động sản Hikari (khu Hikari-dai, mở 10:00–19:00).' }); return; }
   const home = all.filter((id) => stateOf(S, id).place === 'u:' + uid);
   const awake = home.filter((id) => stateOf(S, id).act !== 'sleep');
   advance(S, 3);

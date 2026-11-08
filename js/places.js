@@ -36,7 +36,8 @@ const PLACES = {
     desc: (S) => `Phòng 4 người, chiếu tatami cũ, góc bếp nhỏ. Bây giờ là ${clockStr(S.time)}.`,
     actions: (S) => [
       {
-        label: '😴 Đi ngủ', sub: 'Ngủ đến 06:30 sáng mai · lưu game',
+        label: '😴 Đi ngủ', sub: S.home ? 'Bạn đã chuyển ra ở riêng' : 'Ngủ đến 06:30 sáng mai · lưu game',
+        cond: (s) => (s.home ? 'Bạn đã chuyển ra ở riêng — giường cũ đã có người khác. Về nhà mình mà ngủ.' : null),
         run: async (s) => {
           if (s.time < H(19)) {
             const ok = await modal({ title: 'Ngủ luôn bây giờ?', text: `Mới ${clockStr(s.time)}. Đi ngủ sẽ bỏ qua phần còn lại của ngày hôm nay.`, choices: [{ label: 'Ngủ', value: true }, { label: 'Thôi', value: false, cancel: true }] });
@@ -56,8 +57,7 @@ const PLACES = {
       { label: '📖 Tự học tiếng Nhật', sub: '3 câu hỏi · 60 phút', minutes: 60, energy: 10, run: selfStudy },
       ...(atLeast(S, 'ha', 2) && isAt(S, 'ha', 'dorm') ? [{ label: '🍲 Nấu ăn chung với Hà', sub: 'Không cần nguyên liệu', minutes: 60, fx: { full: 45, mood: 6, health: 1, cook: 1 }, cond: (s) => (s.today.cookHa ? 'Hôm nay đã nấu rồi' : null), after: (s) => { s.today.cookHa = true; gain(s, 'ha', 2); }, res: 'Hà nấu canh chua, bạn rán cá. Bữa cơm có mùi quê nhà.' }] : []),
       ...(canVisitHome(S) ? [{ label: '✈️ Xin nghỉ phép về thăm nhà', sub: 'Dịp Tết / hè · 4 ngày', run: async (s) => { if (await visitHome(s)) return 'leave'; } }] : []),
-      ...(canSpouseVisa(S) ? [{ label: '📄 Đổi sang visa vợ/chồng người Nhật', sub: 'Đã kết hôn với người Nhật', run: async (s) => { setVisa(s, 'spouse', 3); await modal({ who: 'Cục Quản lý Xuất nhập cảnh', title: '🛂 Visa vợ/chồng người Nhật', text: 'Hồ sơ được chấp thuận. Visa này không giới hạn ngành nghề, gia hạn 1–3 năm một lần, và sau 3 năm kết hôn có thể xin thường trú.' }); } }] : []),
-      ...(['ssw2', 'spouse'].includes(S.career.visa) ? [{ label: '📄 Nộp hồ sơ xin thường trú (永住)', sub: 'Lệ phí ¥10,000 · xét điều kiện', run: applyPR }] : []),
+      ...(canSpouseVisa(S) || ['ssw2', 'spouse'].includes(S.career.visa) ? [{ label: '📄 Thủ tục visa / thường trú', sub: 'Làm ở 🛂 Văn phòng Xuất nhập cảnh (phố Kawabata)', cond: () => 'Làm ở Văn phòng Xuất nhập cảnh, phố Kawabata (ngày thường 9:00–16:00)', run: () => null }] : []),
       { label: '📝 Đăng ký thi JLPT qua mạng', sub: canRegister(S) ? 'Đang mở đăng ký · lệ phí ¥7,500' : nextSessionText(S), cond: (s) => (canRegister(s) ? null : 'Chưa tới đợt đăng ký'), run: register },
     ],
   },
@@ -294,12 +294,6 @@ const PLACES = {
       { label: '🍢 Ăn tối (không uống rượu)', cost: 1500, minutes: 60, fx: { full: 45, mood: 4 }, cat: 'food', res: 'Cơm gà, súp miso, đậu nành luộc. No căng.' },
     ],
   },
-  fudosan: {
-    name: 'Bất động sản Hikari', jp: '不動産',
-    closed: (S) => (S.time < H(10) || S.time >= H(19) ? 'Văn phòng mở 10:00 – 19:00.' : null),
-    desc: () => 'Văn phòng môi giới thuê / mua nhà. Kính dán đầy tờ rao: 1K 6,2 vạn, 1LDK 8,5 vạn, 3LDK 12,8 vạn/tháng…',
-    actions: () => [{ label: '🏠 Hỏi thuê / mua nhà', sub: 'Sẽ mở ở bản cập nhật nhà ở (v3.6)', minutes: 10, res: 'Nhân viên đưa bạn tờ giới thiệu: thuê nhà cần tiền cọc (敷金), tiền lễ (礼金), công ty bảo lãnh, và nhiều chủ nhà còn hỏi visa, thu nhập. Mua nhà thì cần vay ngân hàng (住宅ローン) — thường phải có vĩnh trú hoặc visa vợ/chồng. Tính năng thuê / mua sẽ có ở bản cập nhật sau.' }],
-  },
   jpark: {
     name: 'Công viên Hikari-dai', jp: '公園',
     desc: () => 'Công viên nhỏ giữa khu manshon: hồ nước, ghế đá, các cụ tập thể dục buổi sáng, trẻ con chơi buổi chiều.',
@@ -319,6 +313,11 @@ const PLACES = {
     ],
   },
 };
+
+// Module khác (housing.js, gov.js) đăng ký thêm địa điểm / xử lý tòa nhà đặc biệt (lô đất nhà riêng)
+export function addPlaces(o) { Object.assign(PLACES, o); }
+export const buildingHooks = { lot: null };
+export { reasonOf, doAction };
 
 const val = (v, S) => (typeof v === 'function' ? v(S) : v);
 
@@ -501,6 +500,7 @@ export async function interact(target) {
   }
   if (target.type === 'building') {
     const id = target.id;
+    if (/^lot\d+$/.test(id) && buildingHooks.lot) return buildingHooks.lot(S, id);
     const closed = placeClosed(id, S);
     if (closed) { await modal({ title: val(PLACES[id].name, S), text: `🔒 ${closed}` }); return; }
     if (id === 'work' || INTERIOR_OF[id]) { sfx('door'); return enterBuilding(id); }

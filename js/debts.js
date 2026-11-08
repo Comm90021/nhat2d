@@ -9,14 +9,14 @@ import { atLeast } from './social.js';
 import { dayRoll, repayChance } from './ai/rules.js';
 import { sfx } from './audio.js';
 
-const KIND = { home: '🏡 Nợ ở quê', bank: '🏦 Vay ngân hàng', card: '💳 Thẻ tín dụng', shark: '🦈 Vay nóng' };
+const KIND = { home: '🏡 Nợ ở quê', bank: '🏦 Vay ngân hàng', card: '💳 Thẻ tín dụng', shark: '🦈 Vay nóng', mortgage: '🏠 Vay mua nhà' };
 const active = (S) => S.fin.debts.filter((d) => d.status === 'active' && d.balance > 0);
 const remitFee = (S) => (atLeast(S, 'long', 2) ? 500 : 990);
 
 // Số yên cần để trả hết một khoản ngay hôm nay
 export function payoffYen(S, d) {
   if (d.currency === 'VND') return Math.ceil(d.balance / S.fin.fx) + remitFee(S);
-  if (d.kind === 'bank') { const daysIn = (S.day - (d.lastPay || d.start || S.day)); return Math.round(d.balance * (1 + d.rate * Math.min(7, Math.max(0, daysIn)) / 84)); } // lãi tính tới hôm nay (1 tháng = 7 ngày)
+  if (d.kind === 'bank' || d.kind === 'mortgage') { const daysIn = (S.day - (d.lastPay || d.start || S.day)); return Math.round(d.balance * (1 + d.rate * Math.min(7, Math.max(0, daysIn)) / 84)); } // lãi tính tới hôm nay (1 tháng = 7 ngày)
   return Math.round(d.balance);
 }
 const interestNote = (d) => (d.kind === 'shark' ? 'lãi cắt cổ, vượt trần pháp luật (15–20%/năm)' : d.rate ? `lãi ${Math.round(d.rate * 100)}%/năm` : 'không lãi');
@@ -40,7 +40,7 @@ function payDebt(S, d, yenAmt) {
   bankPay(S, amt, 'loan', `Trả ${d.lender}`);
   if (amt >= full) {
     d.balance = 0; d.status = 'paid';
-    if (d.kind === 'bank') S.fin.credit = Math.min(850, (S.fin.credit || 600) + 15);
+    if (d.kind === 'bank' || d.kind === 'mortgage') S.fin.credit = Math.min(850, (S.fin.credit || 600) + 15);
     if (d.kind === 'card' && S.fin.card) S.fin.card.balance = 0;
   } else {
     d.balance = Math.max(0, d.balance - amt);

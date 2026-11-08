@@ -27,7 +27,8 @@ export function netWorth(S) {
   const F = S.fin;
   const jpyDebt = F.debts.filter((d) => d.status === 'active' && d.currency !== 'VND').reduce((a, d) => a + d.balance, 0);
   const assets = F.assets.reduce((a, x) => { const A = ASSETS.find((y) => y.id === x.id); return a + (A ? A.price * (A.resale || 0) : 0); }, 0);
-  return Math.round(F.cash + F.bank + F.savings + portfolioValue(S) + assets - jpyDebt - (F.card ? F.card.balance : 0) - Math.max(0, S.debt) / F.fx);
+  const home = S.home && S.home.own ? S.home.value || 0 : 0;
+  return Math.round(F.cash + F.bank + F.savings + portfolioValue(S) + assets + home - jpyDebt - (F.card ? F.card.balance : 0) - Math.max(0, S.debt) / F.fx);
 }
 export { assetEffect };
 
@@ -64,10 +65,11 @@ export function bankMonthEnd(S, ctx) {
   // lãi tiết kiệm (rất thấp)
   if (F.savings > 0) { const i = Math.floor(F.savings * 0.002 / 12 * (1 - TAX)); if (i > 0) { F.savings += i; } }
   // trả góp khoản vay
-  for (const d of F.debts.filter((x) => x.status === 'active' && (x.kind === 'bank' || x.kind === 'card'))) {
+  for (const d of F.debts.filter((x) => x.status === 'active' && (x.kind === 'bank' || x.kind === 'card' || x.kind === 'mortgage'))) {
     if (d.balance <= 0) continue;
     const interest = Math.round(d.balance * d.rate / 12);
-    const due = d.kind === 'card' ? Math.max(5000, Math.round(d.balance * 0.05)) + interest : Math.min(d.balance + interest, d.installment + interest);
+    // vay mua nhà: trả góp đều (khoản góp đã gồm lãi); vay thường: gốc cố định + lãi
+    const due = d.kind === 'card' ? Math.max(5000, Math.round(d.balance * 0.05)) + interest : d.kind === 'mortgage' ? Math.min(d.balance + interest, d.installment) : Math.min(d.balance + interest, d.installment + interest);
     if (F.bank >= due) {
       bankPay(S, due, 'loan', `Trả góp ${d.lender} (lãi ${yen(interest)})`);
       d.balance = Math.max(0, d.balance + interest - due);
@@ -161,6 +163,29 @@ function loanOffer(S) {
   if (F.debts.some((d) => d.status === 'active' && d.kind === 'bank')) return { ok: false, why: 'Bạn đang có một khoản vay chưa trả xong.' };
   const max = ({ ssw1: 300000, ssw2: 800000, spouse: 1000000, pr: 2000000 })[v] || 300000;
   return { ok: true, max: Math.round(max * (F.credit / 700)) };
+}
+
+// ---------- vay mua nhà (住宅ローン) ----------
+// Người nước ngoài thường phải có vĩnh trú hoặc visa vợ/chồng người Nhật; kỹ sư / KNĐĐ2 ở lâu, tín dụng tốt có thể được.
+// Kỳ hạn 35 năm (420 tháng), trả góp đều; hạn mức ~7 lần thu nhập năm.
+export function mortgageOffer(S, amount, yearIncome) {
+  const F = S.fin, v = S.career.visa;
+  if (F.debts.some((d) => d.status === 'default')) return { ok: false, why: 'Bạn đang có nợ xấu — ngân hàng từ chối.' };
+  if (F.debts.some((d) => d.status === 'active' && d.kind === 'mortgage')) return { ok: false, why: 'Bạn đang có một khoản vay mua nhà chưa trả xong.' };
+  let rate;
+  if (v === 'pr' || v === 'spouse') rate = 0.009;
+  else if ((v === 'eng' || v === 'ssw2') && S.day >= 3 * 84 && (F.credit || 600) >= 650) rate = 0.016;
+  else return { ok: false, why: 'Ngân hàng chỉ cho người nước ngoài vay mua nhà khi có vĩnh trú (永住) hoặc visa vợ/chồng người Nhật; kỹ sư / KNĐĐ số 2 cần ở Nhật ≥ 3 năm và điểm tín dụng ≥ 650.' };
+  if ((F.credit || 600) < 600) return { ok: false, why: `Điểm tín dụng ${F.credit} quá thấp (cần từ 600).` };
+  if (!yearIncome) return { ok: false, why: 'Cần đang có việc làm ổn định.' };
+  if (amount > yearIncome * 7) return { ok: false, why: `Khoản vay ${yen(amount)} vượt 7 lần thu nhập năm (${yen(yearIncome * 7)}).` };
+  const n = 420, r = rate / 12;
+  const installment = Math.ceil(amount * r / (1 - Math.pow(1 + r, -n)));
+  return { ok: true, rate, installment, n };
+}
+export function takeMortgage(S, amount, offer, what) {
+  addDebt(S, { id: 'mortgage' + S.day, kind: 'mortgage', lender: `Vay mua nhà (住宅ローン) · ${what}`, currency: 'JPY', principal: amount, balance: amount, rate: offer.rate, installment: offer.installment, start: S.day });
+  deposit(S, amount, 'loan', 'Giải ngân vay mua nhà');
 }
 
 // ---------- giao diện app ----------

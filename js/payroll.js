@@ -13,16 +13,19 @@ export function payslip(S) {
   const insurance = Math.round(gross * 0.15);                                  // 健康保険・厚生年金・雇用保険 ~15%
   const incomeTax = Math.round(Math.max(0, gross - insurance - 88000) * 0.05);   // 源泉徴収 (đơn giản hóa)
   const residentTax = year(S) >= 2 ? (visa.startsWith('tts') ? 5000 : 9000) : 0; // 住民税 tính trên thu nhập năm trước
-  const rent = S.flags.apartment ? 45000 : RENT[visa] || 20000;
+  // nhà ở: ký túc xá công ty (trừ theo visa) / nhà thuê (家賃) / nhà sở hữu (phí quản lý, thuế nhà đất)
+  const h = S.home;
+  const rent = h ? (h.own ? h.fee || 0 : h.rent || 0) : S.flags.apartment ? 45000 : RENT[visa] || 20000;
+  const rentLabel = h ? (h.own ? 'Phí quản lý · thuế nhà đất (管理費・固定資産税)' : 'Tiền thuê nhà (家賃)') : 'Tiền nhà (ký túc xá)';
   const si = seasonIdx(S);
-  const utility = si === 3 ? 13000 : si === 1 ? 11000 : 8500;
+  const utility = (si === 3 ? 13000 : si === 1 ? 11000 : 8500) + (h ? (h.lot ? 5000 : 2500) : 0);
   const living = 20000;                                                        // gia vị, xà phòng, điện thoại, đi lại…
   const rows = [
     ['Lương gộp (総支給)', gross, 'salary'],
     ['Bảo hiểm xã hội (社会保険)', -insurance, 'insurance'],
     ['Thuế thu nhập (所得税)', -incomeTax, 'tax'],
     ['Thuế cư trú (住民税)', -residentTax, 'tax'],
-    ['Tiền nhà', -rent, 'rent'],
+    [rentLabel, -rent, 'rent'],
     ['Điện · nước · gas', -utility, 'utility'],
     ['Sinh hoạt cơ bản trong tháng', -living, 'living'],
   ];

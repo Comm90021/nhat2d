@@ -35,7 +35,7 @@ export function romanceActions(S, id) {
     const L = S.love;
     a.push(...touchActions(S, id));
     if (L.stage === 'dating') a.push({ label: '💍 Cầu hôn', sub: `Nhẫn + ra mắt gia đình ¥150,000 · khả năng: ${hackOn(S) ? Math.round(proposeChance(S) * 100) + '%' : chanceWord(proposeChance(S))}`, cond: (s) => (s.love.proposeAfter > s.day ? `Chờ thủ tục ly hôn của người ấy xong (còn ${s.love.proposeAfter - s.day} ngày)` : s.money < 150000 ? 'Chưa đủ tiền' : (P(s, id).att || 0) < 60 ? `Chưa đủ rung động 💗 ${Math.round(P(s, id).att || 0)}/60` : null), run: (s) => propose(s) });
-    if (L.stage === 'engaged') a.push({ label: d.gender === S.gender ? '📜 Đăng ký đối tác & làm tiệc nhỏ' : '📜 Đăng ký kết hôn & làm đám cưới nhỏ', sub: `${d.gender === S.gender ? 'パートナーシップ宣誓' : '婚姻届'} · tiệc ¥120,000`, cond: (s) => (s.money < 120000 ? 'Chưa đủ tiền' : null), run: (s) => marry(s) });
+    if (L.stage === 'engaged' || (L.stage === 'married' && !L.wedding)) a.push({ label: '💒 Kết hôn & đám cưới', sub: `${L.stage === 'engaged' ? (d.gender === S.gender ? 'Tuyên thệ đối tác' : 'Nộp 婚姻届') + ' ở 🏛️ Tòa thị chính · ' : ''}tổ chức tiệc ở 💒 Hội trường cưới (phố Kawabata)`, run: (s) => weddingInfo(s) });
     if (isMarried(S) && !L.pregnant && !L.wantKids && d.gender !== S.gender) a.push({ label: '👶 Bàn chuyện sinh con', run: (s) => talkKids(s) });
     a.push({ label: '💔 Chia tay', sub: 'Kết thúc mối quan hệ', run: (s) => breakUp(s) });
   }
@@ -93,6 +93,15 @@ async function propose(S) {
   await modal({ title: '💍 Đã đính hôn', text: `Gia đình ở quê: ${famText(f.sat)}. Khi đủ tiền, hai người có thể đăng ký kết hôn (婚姻届) và làm đám cưới nhỏ.` });
 }
 
+async function weddingInfo(S) {
+  const v = await modal({
+    who: partner(S).name, title: '💒 Kết hôn ở Nhật',
+    text: `Ở Nhật, kết hôn có giá trị pháp lý khi <b>nộp 婚姻届 ở tòa thị chính</b> (cần 2 người làm chứng; người nước ngoài cần giấy chứng nhận đủ điều kiện kết hôn của Đại sứ quán). Đám cưới là tiệc mừng — làm hay không, làm lớn hay nhỏ là tùy hai người.<br>🏛️ Tòa thị chính và 💒 Hội trường cưới Hoshizora ở dãy phía nam phố Kawabata.`,
+    choices: [{ label: '🗺️ Mở bản đồ', value: true }, { label: 'Đóng', value: false, cancel: true }],
+  });
+  if (v) { const { openMap } = await import('./mapview.js'); await openMap(S, 'shotengai'); }
+}
+// (giữ cho save cũ / gọi trực tiếp) kết hôn + tiệc nhỏ trong một bước
 async function marry(S) {
   const d = partner(S);
   pay(S, 120000, 'wedding', 'Đám cưới');

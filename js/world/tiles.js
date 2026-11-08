@@ -130,6 +130,9 @@ export function drawBuilding(c, b, si) {
   const st = b.style;
   const roofH = Math.round(H * (st === 'shrine' ? 0.5 : st === 'office' ? 0.2 : st === 'warehouse' || st === 'plant' ? 0.3 : 0.42));
   const wallY = Y + roofH, wallH = H - roofH;
+  if (st === 'lot') { drawLot(c, b, si); return; }
+  if (st === 'construct') { drawConstruct(c, b, si); return; }
+  if (st === 'house') { drawHouse(c, b, si); return; }
   rect(c, 'rgba(0,0,0,.18)', X + 2, Y + H, W, 3);
   if (st === 'site') { drawSite(c, b, si); return; }
   rect(c, b.wall, X, wallY, W, wallH);
@@ -189,6 +192,54 @@ export function drawBuilding(c, b, si) {
   if (st === 'shop') for (let i = 0; i < 6; i++) rect(c, i % 2 ? '#ffffff' : b.roof, dx - 4 + i * 4, dy - 5, 4, 3);
   if (st === 'clinic' || st === 'care') { rect(c, '#ffffff', X + 4, sy, 9, 9); rect(c, '#3aa35f', X + 7, sy + 1, 3, 7); rect(c, '#3aa35f', X + 5, sy + 3, 7, 3); }
   if (st === 'ramen') { rect(c, '#d9362b', X + 4, wallY + 16, 5, 8); rect(c, '#d9362b', X + W - 9, wallY + 16, 5, 8); } // đèn lồng
+}
+
+// Nhà riêng kiểu Nhật: mái dốc hai tầng, cửa sổ, cửa gỗ, hàng rào thấp
+function drawHouse(c, b, si) {
+  const X = b.x * TS, Y = b.y * TS, W = b.w * TS, H = b.h * TS;
+  rect(c, '#7aa35e', X, Y, W, H);                                   // vườn
+  const hx = X + 4, hw = W - 8, top = Y + 2, roofH = Math.round(H * 0.45), wallY = top + roofH, wallH = Y + H - 6 - wallY;
+  rect(c, 'rgba(0,0,0,.2)', hx + 2, Y + H - 6, hw, 3);
+  rect(c, b.wall, hx, wallY, hw, wallH);
+  rect(c, shade(b.wall, -0.18), hx, wallY + wallH - 2, hw, 2);
+  // mái dốc (vẽ bậc thang thu hẹp dần lên đỉnh)
+  for (let i = 0; i < roofH; i += 2) { const inset = Math.round(i * 0.7); rect(c, i % 4 ? shade(b.roof, -0.12) : b.roof, hx - 3 + inset, wallY - 2 - i, hw + 6 - 2 * inset, 2); }
+  rect(c, b.roof, hx - 3, wallY - 3, hw + 6, 3);
+  if (si === 3) { const inset = Math.round(roofH * 0.7); rect(c, '#f3f7fa', hx - 3 + inset, wallY - roofH, hw + 6 - 2 * inset, 3); }
+  // cửa sổ tầng trên + tầng dưới
+  for (let i = 0; i < b.w - 1; i++) drawWindow(c, hx + 4 + i * TS, wallY + 3, 8, 6);
+  const dx = b.door * TS + 3, dy = Y + H - 6 - 13;
+  rect(c, '#5e3c24', dx - 1, dy - 1, 12, 14); rect(c, '#8a5a35', dx, dy, 10, 13); rect(c, '#f2c94c', dx + 8, dy + 7, 1, 2);
+  // hàng rào thấp + cổng
+  for (let i = 0; i < W; i += 4) if (Math.abs(X + i - dx - 4) > 9) rect(c, '#d8d2c4', X + i, Y + H - 3, 3, 3);
+  // hộp thư / biển tên
+  rect(c, '#c0392b', X + 2, Y + H - 9, 4, 5);
+  if (b.jp) { const sw = 22, sx = X + W - sw - 2, sy = Y + H - 16; rect(c, '#f4f1e6', sx, sy, sw, 9); rect(c, '#c0392b', sx + 1, sy + 1, sw - 2, 1); b.sign = { x: sx + sw / 2, y: sy + 5 }; }
+}
+// Đất trống đang bán: nền đất, cỏ thưa, cọc ranh giới, biển 売地
+function drawLot(c, b, si) {
+  const X = b.x * TS, Y = b.y * TS, W = b.w * TS, H = b.h * TS;
+  rect(c, si === 3 ? '#e9eef2' : '#b59a72', X, Y, W, H);
+  for (let k = 0; k < 30; k++) rect(c, si === 3 ? '#d5dde3' : '#9c835f', X + Math.floor(hash2(k, b.x, 5) * W), Y + Math.floor(hash2(k, b.y, 6) * H), 2, 1);
+  for (let k = 0; k < 10; k++) rect(c, '#6f9a4f', X + Math.floor(hash2(k, b.x, 7) * W), Y + Math.floor(hash2(k, b.y, 8) * H), 1, 2);
+  for (const [px, py] of [[X, Y], [X + W - 2, Y], [X, Y + H - 4], [X + W - 2, Y + H - 4]]) { rect(c, '#e8e3d0', px, py, 2, 4); rect(c, '#c0392b', px, py, 2, 1); }
+  for (let i = 2; i < W - 2; i += 3) { rect(c, '#e8e3d0', X + i, Y + 1, 2, 1); rect(c, '#e8e3d0', X + i, Y + H - 2, 2, 1); }
+  const sw = 26, sx = X + Math.round((W - sw) / 2), sy = Y + 6;
+  rect(c, '#555', sx + sw / 2 - 1, sy + 10, 2, 10);
+  rect(c, '#f4f1e6', sx, sy, sw, 11); rect(c, '#c0392b', sx + 1, sy + 1, sw - 2, 2);
+  b.sign = { x: sx + sw / 2, y: sy + 7 };
+}
+// Nhà đang xây: giàn giáo, lưới che, khung gỗ
+function drawConstruct(c, b, si) {
+  const X = b.x * TS, Y = b.y * TS, W = b.w * TS, H = b.h * TS;
+  rect(c, '#a39a86', X, Y, W, H);
+  for (let i = 0; i < 4; i++) rect(c, '#c9a46a', X + 6 + i * Math.floor((W - 14) / 3), Y + 6, 2, H - 10);
+  for (let j = 0; j < 3; j++) rect(c, '#c9a46a', X + 6, Y + 8 + j * 10, W - 12, 2);
+  rect(c, 'rgba(70,120,190,.45)', X + 2, Y + 3, W - 4, H - 8);
+  for (let i = 0; i < W; i += 10) rect(c, '#e9a23b', X + i, Y + H - 5, 5, 4);
+  const sw = 30, sx = X + 2, sy = Y + H - 16;
+  rect(c, '#2b2f3a', sx, sy, sw, 9);
+  b.sign = { x: sx + sw / 2, y: sy + 5 };
 }
 
 function drawSite(c, b, si) {

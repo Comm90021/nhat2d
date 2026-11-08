@@ -119,14 +119,14 @@ export async function openJobs(S) {
 
 async function interview(S, role) {
   const C = COMPANY[role.co] || { name: coName(role.co), jp: '' };
-  const ref = referral(S, role.co);
-  await modal({ who: `面接 · ${C.jp}`, title: `🧑‍💼 Phỏng vấn: ${C.name}`, text: `Vị trí <b>${esc(role.title)}</b>. Phỏng vấn gồm 3 câu về phép lịch sự / kính ngữ và 2 câu chuyên môn.${ref ? `<br>🤝 ${esc(PEOPLE[ref].name)} đã giới thiệu bạn — điểm cộng lớn.` : ''}${(S.fin.assets || []).some((a) => a.id === 'interview_suit') ? '<br>👔 Bạn mặc bộ vest phỏng vấn — ấn tượng tốt.' : ''}`, ok: 'Gõ cửa 3 lần: 「失礼します」' });
+  const ref = referral(S, role.co) || (S.today.hwRef ? 'hellowork' : null);
+  await modal({ who: `面接 · ${C.jp}`, title: `🧑‍💼 Phỏng vấn: ${C.name}`, text: `Vị trí <b>${esc(role.title)}</b>. Phỏng vấn gồm 3 câu về phép lịch sự / kính ngữ và 2 câu chuyên môn.${ref === 'hellowork' ? '<br>📄 Bạn có giấy giới thiệu (紹介状) của Hello Work — nhà tuyển dụng tin tưởng hơn.' : ref ? `<br>🤝 ${esc(PEOPLE[ref].name)} đã giới thiệu bạn — điểm cộng lớn.` : ''}${(S.fin.assets || []).some((a) => a.id === 'interview_suit') ? '<br>👔 Bạn mặc bộ vest phỏng vấn — ấn tượng tốt.' : ''}`, ok: 'Gõ cửa 3 lần: 「失礼します」' });
   let ok = 0;
   const qs = [...[...INTERVIEW_Q].sort(() => Math.random() - 0.5).slice(0, 3)];
   for (let i = 0; i < 3; i++) { const q = qs[i]; const o = [0, 1, 2, 3].sort(() => Math.random() - 0.5); if (await ask({ ...q, opts: o.map((k) => q.opts[k]), a: o.indexOf(0) }, { who: `Phỏng vấn · Câu ${i + 1}/5`, feedback: 'none' })) ok++; }
   for (let i = 0; i < 2; i++) { const q = pickWork(S, role.job); if (await ask(q, { who: `Phỏng vấn · Câu ${i + 4}/5`, feedback: 'none' })) ok++; }
   const jpBonus = (levelIndex(S.lang) - JP_IDX[(role.req && role.req.jp) || ''] ) * 0.05;
-  const score = ok / 5 * 0.75 + (ref ? 0.2 : 0) + ((S.fin.assets || []).some((a) => a.id === 'interview_suit') ? 0.07 : 0) + Math.max(0, jpBonus) + (S.rep - 50) / 400 + ((S.attr ? S.attr.soc : 25) - 30) / 400 + ((S.attr ? S.attr.look : 30) - 30) / 600 + (luckOf(S) - 50) / 800;
+  const score = ok / 5 * 0.75 + (ref === 'hellowork' ? 0.1 : ref ? 0.2 : 0) + ((S.fin.assets || []).some((a) => a.id === 'interview_suit') ? 0.07 : 0) + Math.max(0, jpBonus) + (S.rep - 50) / 400 + ((S.attr ? S.attr.soc : 25) - 30) / 400 + ((S.attr ? S.attr.look : 30) - 30) / 600 + (luckOf(S) - 50) / 800;
   S.time += 120;
   if (score < 0.6) { sfx('bad'); await modal({ who: C.name, title: '📩 Kết quả phỏng vấn', jp: '不採用', text: `Cảm ơn bạn đã ứng tuyển. Lần này công ty chưa thể tuyển bạn. (Trả lời đúng ${ok}/5)<br><span class="dim">Luyện kính ngữ, chuẩn bị 志望動機, có người giới thiệu sẽ dễ hơn.</span>` }); return; }
   sfx('end');

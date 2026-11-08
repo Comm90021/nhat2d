@@ -18,7 +18,9 @@ const ICON = {
   ramen: '🍜', center: '🤝', care: '🧓', bento: '🍱', it: '💻', electric: '⚡', parts: '🔩', teishoku: '🍚', logistics: '📦', site: '🏗️',
   apt: '🏢', hikari: '🏢', sakura: '🏢', residence: '🏢', fudosan: '🏠', park: '🌳', river: '🌊', jpark: '🌳', mpark: '🌳',
   cafe: '☕', karaoke: '🎤', cinema: '🎬', gamecenter: '🕹️', mall: '🛍️', gym: '🏋️', library: '📖', sento: '♨️', izakaya: '🏮',
+  midori: '🏢', aoba: '🏢', cityhall: '🏛️', hellowork: '💼', immigration: '🛂', wedding: '💒',
 };
+const lotIcon = (b) => (b.style === 'lot' ? '🟫' : b.style === 'construct' ? '🏗️' : b.name === 'Nhà của bạn' ? '🏡' : '🏠');
 const COLOR = { work: '#e67e22', shop: '#3498db', food: '#e74c3c', home: '#9b59b6', leisure: '#27ae60', service: '#16a085', health: '#e84393', study: '#f1c40f', temple: '#c0392b' };
 
 const metIds = (S) => ids().filter((id) => S.npc && S.npc[id] && S.npc[id].met);
@@ -46,7 +48,7 @@ function render(S, M) {
     const x = (b.x + b.w / 2) * TS * k, y = (b.y + b.h / 2) * TS * k;
     const kind = (AI_PLACES[b.id] && AI_PLACES[b.id].kind) || (b.id.startsWith('station') ? 'service' : 'shop');
     c.font = 'bold 11px sans-serif';
-    const label = `${ICON[b.id] || '🏠'} ${buildingName(b, S)}`;
+    const label = `${ICON[b.id] || (b.lot ? lotIcon(b) : '🏠')} ${buildingName(b, S)}`;
     const tw = c.measureText(label).width + 10;
     c.fillStyle = 'rgba(16,20,36,.82)'; c.fillRect(x - tw / 2, y - 9, tw, 18);
     c.fillStyle = COLOR[kind] || '#888'; c.fillRect(x - tw / 2, y + 7, tw, 2);
@@ -93,7 +95,7 @@ export async function openMap(S, start) {
       ...M.buildings.map((b) => {
         const fr = here[b.id] || [], homes = BUILDINGS[b.id] ? friendHomes(S, b.id) : [];
         const sub = [b.id === wp || (b.id === 'work' && wp === 'work') ? '💼 chỗ làm của bạn' : '', fr.length ? `👥 ${fr.slice(0, 3).join(', ')}${fr.length > 3 ? '…' : ''}` : '', homes.length ? `🏠 nhà ${homes.slice(0, 3).join(', ')}` : ''].filter(Boolean).join(' · ');
-        return { label: `${ICON[b.id] || '🏠'} ${buildingName(b, S)}`, sub, value: 'b:' + b.id };
+        return { label: `${ICON[b.id] || (b.lot ? lotIcon(b) : '🏠')} ${buildingName(b, S)}`, sub, value: 'b:' + b.id };
       }),
       ...M.spots.filter((s) => s.interact).map((s) => ({ label: `${ICON[s.id] || '📍'} ${s.name}`, sub: (here[s.id] || []).length ? `👥 ${here[s.id].join(', ')}` : '', value: 's:' + s.id })),
     ];
