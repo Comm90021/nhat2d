@@ -6,6 +6,8 @@ import { pickQuestion, answer, progress, shuffleQ, LEVELS } from './learning.js'
 import { WORK_Q } from './content/work.js';
 import { WORK_Q2 } from './content/work2.js';
 import { assetEffect } from './finance.js';
+import { G } from './state.js';
+import { hackOn } from './hackflag.js';
 
 // Hỏi một câu. q: {q, opts[], a, ex, k?}. Trả về true nếu đúng.
 // opts.feedback: 'full' (hiện giải thích khi sai) | 'none' (thi: không cho biết đáp án)
@@ -13,7 +15,8 @@ export async function ask(q, o = {}) {
   const kind = q.k ? KIND[q.k] : null;
   const isJp = !!kind;
   const hide = new Set(o.hide || []);
-  const choices = q.opts.map((t, i) => ({ label: esc(t), value: i, disabled: hide.has(i), reason: hide.has(i) ? 'Senpai bảo: không phải cái này' : '' }));
+  const hk = hackOn(G.S);
+  const choices = q.opts.map((t, i) => ({ label: esc(t) + (hk && i === q.a ? ' ⭐' : ''), value: i, disabled: hide.has(i), reason: hide.has(i) ? 'Senpai bảo: không phải cái này' : '' }));
   const v = await modal({
     who: o.who || (kind ? `${kind.label} · ${q.lv}` : 'Tình huống'),
     title: o.title || '',

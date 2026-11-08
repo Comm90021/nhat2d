@@ -530,7 +530,11 @@ export const worldScene = {
     const before = auto ? S.pos.x + S.pos.y : 0;
     moving = Math.abs(a.x) > 0.05 || Math.abs(a.y) > 0.05;
     if (moving) {
-      const sp = (M.outdoor ? 62 * assetEffect(S, 'speed') : 48) * (S.energy < 15 ? 0.7 : 1);
+      // Shift: chạy nhanh gấp đôi (tốn thêm năng lượng); tự đi bằng bản đồ: nhanh gấp 3
+      const run = !auto && (input.isDown('ShiftLeft') || input.isDown('ShiftRight')) && S.energy > 8;
+      if (run) S.energy = Math.max(0, S.energy - dt * 0.6);
+      const sp = (M.outdoor ? 62 * assetEffect(S, 'speed') : 48) * (S.energy < 15 ? 0.7 : 1) * (auto ? 3 : run ? 2 : 1);
+      if (auto) { const n = auto.path[auto.i]; if (n && Math.hypot(n[0] * TS + 8 - S.pos.x, n[1] * TS + 11 - S.pos.y) <= sp * dt) { S.pos = { x: n[0] * TS + 8, y: n[1] * TS + 11 }; auto.i++; a = { x: 0, y: 0 }; } }
       S.dir = Math.abs(a.x) > Math.abs(a.y) ? (a.x < 0 ? 'left' : 'right') : (a.y < 0 ? 'up' : 'down');
       const nx = S.pos.x + a.x * sp * dt;
       if (!blocked(M, nx, S.pos.y)) S.pos.x = nx;

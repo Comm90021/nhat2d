@@ -14,7 +14,10 @@ import { openMap } from './mapview.js';
 import { familyText } from './homes.js';
 import { inviteDate, heartsHtml, knownHtml, isPartner, addAtt } from './dating.js';
 import { chips } from './ui.js';
-import { stateOf, moodInfo } from './ai/sim.js';
+import { stateOf, moodInfo, companionsText, topRelations } from './ai/sim.js';
+import { repeatMult, repeatNote } from './social.js';
+import { openCharSheet } from './charsheet.js';
+import { openDebts } from './debts.js';
 import { AI_PLACES } from './ai/world.js';
 import { ACT } from './ai/rules.js';
 import { yen, vnd, month } from './state.js';
@@ -34,7 +37,9 @@ export async function openPhone(S) {
         { label: '💼 Việc làm', sub: 'Tìm việc, chuyển việc, thi chứng chỉ nghề', value: 'jobs' },
         { label: '🏦 Ngân hàng', sub: 'Tài khoản, chuyển tiền, tiết kiệm, đầu tư, vay, vé số, mua sắm', value: 'bank' },
         { label: '🗺️ Bản đồ', sub: 'Xem 3 khu, chọn nơi đến: tự đi bộ / xe buýt / taxi (phím M)', value: 'map' },
-        { label: '👥 Ai đang ở đâu?', sub: 'Mỗi người có lịch sống riêng', value: 'where' },
+        { label: '👥 Ai đang ở đâu?', sub: 'Đang làm gì, ở cùng ai', value: 'where' },
+        { label: '👤 Hồ sơ nhân vật', sub: 'Mọi chỉ số của bạn (phím C)', value: 'me' },
+        { label: '💸 Trả nợ', sub: 'Mọi khoản nợ · trả một phần / trả hết', value: 'debts' },
         { label: '✖ Cất điện thoại', value: null, cancel: true },
       ],
     });
@@ -49,6 +54,8 @@ export async function openPhone(S) {
     if (v === 'jobs') await openJobs(S);
     if (v === 'map') { await openMap(S); return; }
     if (v === 'cal') await modal({ who: 'Lịch', title: '📅 Lịch & việc sắp tới', html: calendarHtml(S), ok: 'Đóng' });
+    if (v === 'me') await openCharSheet(S);
+    if (v === 'debts') await openDebts(S);
     if (v === 'where') await modal({ who: 'Ngay lúc này', title: '👥 Ai đang ở đâu?', wide: true, html: whereHtml(S), ok: 'Đóng' });
   }
 }
@@ -65,29 +72,37 @@ async function contacts(S, met) {
   const evening = (S.time >= 17 * 60 && S.time < 22 * 60) || (dow(S) >= 5 && S.time >= 11 * 60 && S.time < 21 * 60);
   // qua điện thoại: không có cử chỉ thân mật / qua đêm
   const rom = romanceActions(S, id).filter((a) => (!a.label.includes('Tỏ tình') || evening) && !/^(🤝|🤗|💋|🌙)/.test(a.label));
+  const nowSt = d.traits ? stateOf(S, id) : null, nowPl = nowSt && AI_PLACES[nowSt.place];
+  const withTxt = d.traits ? companionsText(S, id) : '';
+  const rels = d.traits ? topRelations(S, id) : [];
+  const nowHtml = nowSt ? `<p class="dim">📍 Đang ${esc((ACT[nowSt.act] || ACT.home).label.replace(/^đang /, ''))}${nowPl ? ` · ${esc(nowPl.name)}` : ''}${withTxt ? `<br>👥 Cùng: ${esc(withTxt)}` : nowSt.act !== 'sleep' ? '<br>👥 Đang ở một mình' : ''}${rels.length ? `<br>🔗 Mối quan hệ: ${esc(rels.join(', '))}` : ''}</p>` : '';
   const act = await modal({
-    who: d.role, title: d.name, html: affBar(p.aff) + heartsHtml(S, id) + knownHtml(S, id) + `<p class="dim">🏠 ${familyText(S, id)}</p>` + (d.perks[stageIdx(p.aff)] ? `<p class="dim">Quyền lợi hiện tại: ${esc(d.perks[stageIdx(p.aff)])}</p>` : ''),
+    who: d.role, title: d.name, html: affBar(p.aff) + heartsHtml(S, id) + knownHtml(S, id) + `<p class="dim">🏠 ${familyText(S, id)}</p>` + nowHtml + (d.perks[stageIdx(p.aff)] ? `<p class="dim">Quyền lợi hiện tại: ${esc(d.perks[stageIdx(p.aff)])}</p>` : ''),
     choices: [
       { label: '🗺️ Xem nhà / chỗ đang ở trên bản đồ', value: 'map' },
-      { label: '💌 Nhắn tin hỏi thăm', sub: '5 phút · mỗi người 1 lần/ngày', value: 'msg', disabled: p.msg === S.day, reason: 'Hôm nay nhắn rồi' },
-      { label: '📅 Rủ đi chơi / hẹn hò', sub: 'Chọn địa điểm và giờ hẹn', value: 'date', disabled: stageIdx(p.aff) < 1 && (p.att || 0) < 40, reason: 'Chưa đủ thân' },
-      { label: '📞 Gọi điện nói chuyện', sub: 'Buổi tối · 20 phút', value: 'call', disabled: p.call === S.day || S.time < 18 * 60 || stageIdx(p.aff) < 1, reason: p.call === S.day ? 'Hôm nay gọi rồi' : stageIdx(p.aff) < 1 ? 'Chưa đủ thân' : 'Gọi buổi tối thôi' },
+      { label: '💌 Nhắn tin hỏi thăm', sub: `5 phút${repeatNote(S, p, 'msg')}`, value: 'msg' },
+      { label: '📅 Rủ đi chơi / hẹn hò', sub: 'Chọn địa điểm và giờ hẹn', value: 'date', disabled: stageIdx(p.aff) < 1 && (p.att || 0) < 40, reason: 'Chưa đủ thân (cần quen biết, hoặc có chút rung động)' },
+      { label: '📞 Gọi điện nói chuyện', sub: `20 phút${repeatNote(S, p, 'call')}`, value: 'call', disabled: stageIdx(p.aff) < 1 || S.time >= 23 * 60 || S.time < 7 * 60, reason: stageIdx(p.aff) < 1 ? 'Chưa đủ thân để gọi điện' : 'Giờ này người ta đang ngủ' },
       ...rom.map((a, k) => { const r = a.cond ? a.cond(S) : null; return { label: a.label, sub: a.sub, value: 'r' + k, disabled: !!r, reason: r }; }),
       { label: '← Quay lại', value: null, cancel: true },
     ],
   });
   if (typeof act === 'string' && act[0] === 'r') { await rom[+act.slice(1)].run(S); return; }
   if (act === 'msg') {
-    p.msg = S.day;
     advance(S, 5);
-    gain(S, id, 1);
-    toast(`💌 ${d.name} đã trả lời tin nhắn của bạn`);
+    const k = repeatMult(S, p, 'msg', isPartner(S, id));
+    if (k < 0) { gain(S, id, -1); toast(`💌 ${d.name}: "Nhắn nhiều quá rồi đó… 😅"`); }
+    else { const v = Math.round(1 * k * 10) / 10; if (v >= 0.5) gain(S, id, Math.max(1, Math.round(v))); toast(`💌 ${d.name} đã trả lời tin nhắn của bạn${k < 1 ? ' (ngắn hơn lần trước)' : ''}`); }
   }
   if (act === 'date') await inviteDate(S, id);
   if (act === 'call') {
-    p.call = S.day; advance(S, 20);
-    const v = 2 + (isPartner(S, id) ? 1 : 0);
-    gain(S, id, v); const da = addAtt(S, id, isPartner(S, id) ? 2 : 1);
+    advance(S, 20);
+    const busy = nowSt && (nowSt.act === 'work' || nowSt.act === 'sleep');
+    if (busy) { await modal({ who: `📞 ${d.name}`, title: '📞 Không bắt máy', text: nowSt.act === 'work' ? `${esc(d.name)} đang làm việc, nhắn lại: "Đang bận, tối gọi nhé!"` : 'Không ai nghe máy — chắc đang ngủ.' }); return; }
+    const k = repeatMult(S, p, 'call', isPartner(S, id));
+    if (k < 0) { gain(S, id, -1); await modal({ who: `📞 ${d.name}`, title: '📞 Gọi điện', text: `"Lại là bạn à… mình đang dở việc, nói sau nhé." Gọi dồn dập quá khiến ${esc(d.name)} hơi phiền.`, html: chips([['aff', -1]]) }); return; }
+    const v = Math.max(1, Math.round((2 + (isPartner(S, id) ? 1 : 0)) * k));
+    gain(S, id, v); const da = addAtt(S, id, Math.round((isPartner(S, id) ? 2 : 1) * k));
     await modal({ who: `📞 ${d.name}`, title: '📞 Gọi điện', text: isPartner(S, id) ? 'Hai người nói chuyện đến khi pin điện thoại báo đỏ.' : `Hỏi han công việc, kể chuyện hôm nay. ${esc(d.name)} có vẻ vui vì bạn gọi.`, html: chips([['aff', v], ...(da ? [['att', da]] : [])]) });
   }
   if (act === 'map') { const pl = AI_PLACES[stateOf(S, id).place], home = AI_PLACES[d.home]; await openMap(S, (pl && pl.map !== 'off' && pl.map) || (home && home.map !== 'off' && home.map) || undefined); }
@@ -99,7 +114,8 @@ function whereHtml(S) {
   const rows = known.map((id) => {
     const st = stateOf(S, id), pl = AI_PLACES[st.place], mi = moodInfo(S, id);
     const met = S.npc[id] && S.npc[id].met;
-    return { id, text: `<li><b>${esc(PEOPLE[id].name)}</b> ${met ? mi.icon : ''} — ${(ACT[st.act] || ACT.home).label}${pl ? ` · <i>${esc(pl.name)}</i>${pl.map === 'minato' ? ' (khu Minato)' : ''}` : ''}<br><span class="dim">${esc(PEOPLE[id].role)}${met ? ` · tâm trạng: ${mi.name}` : ' · chưa quen'}</span></li>`, met };
+    const w = st.act !== 'sleep' ? companionsText(S, id) : '';
+    return { id, text: `<li><b>${esc(PEOPLE[id].name)}</b> ${met ? mi.icon : ''} — ${(ACT[st.act] || ACT.home).label}${pl ? ` · <i>${esc(pl.name)}</i>${pl.map === 'minato' ? ' (khu Minato)' : ''}` : ''}${st.act !== 'sleep' ? `<br>👥 ${w ? `cùng: ${esc(w)}` : 'một mình'}` : ''}<br><span class="dim">${esc(PEOPLE[id].role)}${met ? ` · tâm trạng: ${mi.name}` : ' · chưa quen'}</span></li>`, met };
   }).sort((a, b) => b.met - a.met);
   return `<p class="dim">Mỗi người có lịch sống riêng theo tính cách, công việc, tâm trạng và thời tiết. Tới đúng chỗ là gặp được.</p><ul class="log">${rows.map((r) => r.text).join('')}</ul>`;
 }

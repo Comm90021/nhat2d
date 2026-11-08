@@ -1,6 +1,8 @@
 // Tình cảm: tỏ tình → hẹn hò → cầu hôn → ra mắt gia đình → kết hôn → con cái.
 // Nội dung ở mức phù hợp mọi lứa tuổi.
-import { applyFx, advance, addLog, clamp, yen, MIDNIGHT, YEAR_DAYS, dow } from './state.js';
+import { applyFx, advance, addLog, clamp, yen, MIDNIGHT, YEAR_DAYS, dow, luckP } from './state.js';
+import { dayRoll, chanceWord } from './ai/rules.js';
+import { hackOn } from './hackflag.js';
 import { modal, chips, toast, esc } from './ui.js';
 import { PEOPLE, P, gain, stageIdx, hooks, affBar } from './social.js';
 import { levelIndex } from './learning.js';
@@ -8,7 +10,7 @@ import { fam, famGain, famText } from './family.js';
 import { VISAS } from './career.js';
 import { sfx } from './audio.js';
 import { pay } from './finance.js';
-import { romanceGate, confessReason, confess, touchActions, isPartner, isAffair } from './dating.js';
+import { romanceGate, confessReason, confess, confessChance, touchActions, isPartner, isAffair } from './dating.js';
 
 const PREG_DAYS = 63; // 9 tháng (7 ngày chơi = 1 tháng)
 const NAMES_VN = ['An', 'Bình', 'Minh', 'Khang', 'Linh', 'Ngọc', 'Hân', 'Phúc'];
@@ -26,12 +28,13 @@ export function romanceActions(S, id) {
   const g = romanceGate(S, id);
   if (g.ok && !isPartner(S, id) && !isAffair(S, id)) {
     const r = confessReason(S, id);
-    a.push({ label: `💗 Tỏ tình với ${d.name}`, sub: r || (g.affair ? '⚠️ Người này đã có gia đình' : 'Có vẻ có cơ hội…'), cond: () => r, run: (s) => confess(s, id) });
+    const pc = r ? 0 : confessChance(S, id);
+    a.push({ label: `💗 Tỏ tình với ${d.name}`, sub: r || `${g.affair ? '⚠️ Người này đã có gia đình · ' : ''}Khả năng: ${hackOn(S) ? Math.round(pc * 100) + '%' : chanceWord(pc)}`, cond: () => r, run: (s) => confess(s, id) });
   }
   if (isPartner(S, id)) {
     const L = S.love;
     a.push(...touchActions(S, id));
-    if (L.stage === 'dating') a.push({ label: '💍 Cầu hôn', sub: 'Nhẫn + ra mắt gia đình ¥150,000 · người ấy có thể chưa sẵn sàng', cond: (s) => (s.money < 150000 ? 'Chưa đủ tiền' : (P(s, id).att || 0) < 60 ? `Chưa đủ rung động 💗 ${Math.round(P(s, id).att || 0)}/60` : null), run: (s) => propose(s) });
+    if (L.stage === 'dating') a.push({ label: '💍 Cầu hôn', sub: `Nhẫn + ra mắt gia đình ¥150,000 · khả năng: ${hackOn(S) ? Math.round(proposeChance(S) * 100) + '%' : chanceWord(proposeChance(S))}`, cond: (s) => (s.love.proposeAfter > s.day ? `Chờ thủ tục ly hôn của người ấy xong (còn ${s.love.proposeAfter - s.day} ngày)` : s.money < 150000 ? 'Chưa đủ tiền' : (P(s, id).att || 0) < 60 ? `Chưa đủ rung động 💗 ${Math.round(P(s, id).att || 0)}/60` : null), run: (s) => propose(s) });
     if (L.stage === 'engaged') a.push({ label: d.gender === S.gender ? '📜 Đăng ký đối tác & làm tiệc nhỏ' : '📜 Đăng ký kết hôn & làm đám cưới nhỏ', sub: `${d.gender === S.gender ? 'パートナーシップ宣誓' : '婚姻届'} · tiệc ¥120,000`, cond: (s) => (s.money < 120000 ? 'Chưa đủ tiền' : null), run: (s) => marry(s) });
     if (isMarried(S) && !L.pregnant && !L.wantKids && d.gender !== S.gender) a.push({ label: '👶 Bàn chuyện sinh con', run: (s) => talkKids(s) });
     a.push({ label: '💔 Chia tay', sub: 'Kết thúc mối quan hệ', run: (s) => breakUp(s) });
@@ -55,11 +58,15 @@ async function breakUp(S) {
   const out = applyFx(S, { mood: -15, stress: 8 });
   await modal({ who: d.name, title: '💔 Đã chia tay', html: chips(out) });
 }
+// người ấy có đồng ý không: rung động, thân thiết, đã yêu bao lâu (không có mốc cứng), may mắn
+export function proposeChance(S) {
+  const p = P(S, S.love.id);
+  return luckP(S, 1 / (1 + Math.exp(-(0.1 * ((p.att || 0) - 70) + 0.05 * (p.aff - 55) + Math.min(1.2, (S.day - S.love.since) / 25)))), true);
+}
 async function propose(S) {
   const d = partner(S), p = P(S, S.love.id);
-  // người ấy có đồng ý không: rung động, thân thiết, đã yêu bao lâu (không có mốc cứng)
-  const chance = 1 / (1 + Math.exp(-(0.1 * ((p.att || 0) - 70) + 0.05 * (p.aff - 55) + Math.min(1.2, (S.day - S.love.since) / 25))));
-  if (Math.random() > chance) { p.att = clamp((p.att || 0) - 3); await modal({ who: d.name, title: '💍 Chưa phải lúc', text: `${esc(d.name)} xúc động nhưng lắc đầu: "Mình yêu bạn, nhưng mình muốn chắc chắn hơn. Cho mình thêm thời gian nhé."` }); return; }
+  const chance = proposeChance(S);
+  if (dayRoll(S, S.love.id, 'propose') > chance) { p.att = clamp((p.att || 0) - 3); await modal({ who: d.name, title: '💍 Chưa phải lúc', text: `${esc(d.name)} xúc động nhưng lắc đầu: "Mình yêu bạn, nhưng mình muốn chắc chắn hơn. Cho mình thêm thời gian nhé."` }); return; }
   pay(S, 150000, 'wedding', 'Nhẫn cầu hôn, lễ ra mắt');
   advance(S, 120);
   addLog(S, `Cầu hôn ${d.name}`);

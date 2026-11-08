@@ -8,8 +8,12 @@ import { ask } from './quiz.js';
 import { sfx } from './audio.js';
 import { pay } from './finance.js';
 import { stateOf, moodToday, moodInfo, adjustMood, npcsAt } from './ai/sim.js';
-import { willTalk, moodGain, acceptInvite } from './ai/rules.js';
-import { chatTopic, inviteDate, firstImpression, isBirthday, addAtt, heartsHtml } from './dating.js';
+import { willTalk, moodGain, acceptInvite, reasons, dayRoll, chanceWord } from './ai/rules.js';
+import { hackOn } from './hackflag.js';
+// Chế độ hack: hiện xác suất chính xác
+export const hackPct = (S, p) => (hackOn(S) ? `<br><span class="hackpct">🛠️ Xác suất đồng ý: ${Math.round(p * 100)}%</span>` : '');
+const isPartnerId = (S, id) => !!(S.love && S.love.id === id);
+import { chatTopic, inviteDate, firstImpression, isBirthday, addAtt, heartsHtml, yamadaBeat } from './dating.js';
 
 export { PEOPLE };
 // Cho phép module khác (romance.js) gắn thêm lựa chọn vào menu từng người
@@ -52,21 +56,45 @@ async function meet(S, id) {
   if (d.traits) await firstImpression(S, id);
 }
 
-// Nói chuyện (mỗi người 1 lần/ngày). Với người Nhật: có 1 câu tiếng Nhật lồng trong hội thoại.
+// Làm lại cùng một việc với cùng một người trong ngày: hiệu quả giảm dần, quá nhiều thì người ta thấy phiền.
+// Người yêu / rất thân chịu được nhiều hơn. Trả về hệ số (1, 0.5, 0.25…) hoặc -1 nếu đã phiền.
+export function repeatMult(S, p, key, close = false) {
+  const r = p.rep || (p.rep = {});
+  if (!r[key] || r[key].d !== S.day) r[key] = { d: S.day, n: 0 };
+  const n = r[key].n++;
+  const steps = close || stageIdx(p.aff) >= 3 ? [1, 0.75, 0.5, 0.35, 0.25] : [1, 0.5, 0.25];
+  return n < steps.length ? steps[n] : -1;
+}
+export function repeatNote(S, p, key) {
+  const r = p.rep && p.rep[key];
+  const n = r && r.d === S.day ? r.n : 0;
+  return n ? ` · lần ${n + 1} hôm nay — hiệu quả giảm dần` : '';
+}
+
+// Nói chuyện. Với người Nhật: có 1 câu tiếng Nhật lồng trong hội thoại.
+// Không giới hạn số lần, nhưng nói nhiều trong một ngày thì hiệu quả giảm dần.
 export async function talkTo(S, id) {
   const d = PEOPLE[id], p = P(S, id);
   if (!p.met) await meet(S, id);
-  if (p.talked === S.day) { toast(`${d.name} đang bận, mai nói chuyện tiếp nhé.`); return; }
-  p.talked = S.day;
   const st = stageIdx(p.aff);
-  advance(S, 15);
-  // tâm trạng hôm nay quyết định có muốn nói chuyện không
+  // tâm trạng hôm nay quyết định có muốn nói chuyện không (kết quả nhất quán trong ngày)
   const mood = d.traits ? moodToday(S, id) : 60;
   const mi = d.traits ? moodInfo(S, id) : { icon: '🙂', name: 'Bình thường' };
-  if (d.traits && Math.random() > willTalk(d.traits, mood)) {
-    await modal({ who: `${d.name} · ${mi.icon} ${mi.name}`, title: `💬 ${d.name}`, text: `${esc(d.name)} trả lời cụt lủn rồi quay đi. Hôm nay có vẻ không có tâm trạng nói chuyện. Để hôm khác nhé.` });
+  const act = d.traits ? stateOf(S, id).act : '';
+  const pTalk = d.traits ? willTalk(d.traits, mood) * (act === 'work' ? 0.75 : 1) : 1;
+  if (d.traits && dayRoll(S, id, 'talk') > pTalk) {
+    advance(S, 3);
+    await modal({ who: `${d.name} · ${mi.icon} ${mi.name}`, title: `💬 ${d.name}`, text: `${esc(d.name)} trả lời cụt lủn rồi quay đi. Hôm nay có vẻ không có tâm trạng nói chuyện.<br><span class="dim">Vì sao: ${esc(reasons({ tr: d.traits, aff: p.aff, mood, act }))}. Thử tặng quà nhỏ, hoặc gặp lại lúc người ấy vui hơn.</span>${hackPct(S, pTalk)}` });
     return;
   }
+  const k = repeatMult(S, p, 'talk', isPartnerId(S, id));
+  if (k < 0) {
+    gain(S, id, -1);
+    await modal({ who: `${d.name} · ${mi.icon} ${mi.name}`, title: `💬 ${d.name}`, text: `${esc(d.name)} cười gượng: ${d.jp ? '「今日はもうたくさん話したね…」' : '"Hôm nay mình nói chuyện nhiều lắm rồi…"'} Có vẻ hơi phiền rồi — để mai nhé.`, html: chips([['aff', -1]]) });
+    return;
+  }
+  p.talked = S.day;
+  advance(S, 15);
   let v = 3, extra = '';
   const fx = { mood: 2 };
   if (d.jp) {
@@ -75,24 +103,40 @@ export async function talkTo(S, id) {
     answer(S.lang, q, ok, { mult: 0.8 });
     if (ok) { v = 5; extra = 'Bạn trả lời trôi chảy, câu chuyện rôm rả hẳn lên.'; } else { v = 2; extra = `Bạn lúng túng… (đáp án: ${esc(q.opts[q.a])})`; }
   } else extra = d.lines[st];
-  // quyền lợi riêng
-  if (id === 'kimura' && st >= 2) { S.skill[S.job] = (S.skill[S.job] || 0) + 1; extra += '<br>🛠️ Anh chỉ bạn một mẹo nghề: tay nghề +1.'; }
-  if (id === 'mai' && st >= 2) fx.jp = 1;
-  if (id === 'long') extra += `<br>💡 "${esc(LONG_TIPS[(p.aff + S.day) % LONG_TIPS.length])}"`;
-  if (id === 'sato') {
+  // quyền lợi riêng (chỉ lần nói chuyện đầu trong ngày)
+  const first = k >= 1;
+  if (first && id === 'kimura' && st >= 2) { S.skill[S.job] = (S.skill[S.job] || 0) + 1; extra += '<br>🛠️ Anh chỉ bạn một mẹo nghề: tay nghề +1.'; }
+  if (first && id === 'mai' && st >= 2) fx.jp = 1;
+  if (first && id === 'long') extra += `<br>💡 "${esc(LONG_TIPS[(p.aff + S.day) % LONG_TIPS.length])}"`;
+  if (first && id === 'sato') {
     S.lang.phrases = S.lang.phrases || [];
     const next = PHRASES.find((x) => !S.lang.phrases.includes(x.id)) || PHRASES[S.day % PHRASES.length];
     if (!S.lang.phrases.includes(next.id)) S.lang.phrases.push(next.id);
     extra += `<br>👵 Bà dạy bạn: <b>${esc(next.jp)}</b> (<i>${esc(next.ro)}</i>) — ${esc(next.vi)}`;
     fx.jp = (fx.jp || 0) + 1;
   }
-  v = Math.round(v * (d.traits ? moodGain(mood) : 1));
+  v = Math.max(1, Math.round(v * (d.traits ? moodGain(mood) : 1) * k));
+  if (!first) extra += `<br><span class="dim">(Lần nói chuyện thứ ${p.rep.talk.n} hôm nay — thân thiết tăng ít hơn.)</span>`;
   if (d.traits) adjustMood(S, id, 3);
   const up = gain(S, id, v);
   const out = applyFx(S, fx);
   out.push(['aff', v]);
   await modal({ who: `${d.name} · ${stageName(p.aff)} · ${mi.icon} ${mi.name}`, title: `💬 ${d.name}`, text: extra, html: chips(out) + affBar(p.aff) });
   if (up) await stageUp(S, id, up);
+  if (id === 'yamada') await yamadaBeat(S);
+}
+
+// Lời từ chối khớp nguyên nhân thật
+export function refuseLine(S, id, act) {
+  const d = PEOPLE[id], p = P(S, id), mood = d.traits ? moodToday(S, id) : 50;
+  if (act === 'work') return '"Mình đang làm, hôm khác nhé!"';
+  if (act === 'sleep') return '"(ngái ngủ)… Mai nói chuyện nhé…"';
+  if (S.love && S.love.id !== id && (p.att || 0) >= 40 && d.traits && d.traits.jea > 0.5) return '"Bạn có người yêu rồi mà… mình không muốn bị hiểu lầm."';
+  if (mood < 25) return '"Hôm nay mình buồn lắm, muốn ở một mình…"';
+  if (mood < 40) return '"Hôm nay mình đang bực mấy chuyện, để dịp khác nha."';
+  if (p.aff < 15) return '"Ơ… mình mới quen nhau thôi mà. Để lần sau nhé."';
+  if (d.traits && d.traits.ext < 0.35) return '"Mình thích ở nhà hơn… hôm khác nhé."';
+  return '"Hôm nay mình có hẹn trước rồi, xin lỗi nha."';
 }
 
 export function affBar(aff) {
@@ -101,10 +145,12 @@ export function affBar(aff) {
 
 export async function giveGift(S, id) {
   const d = PEOPLE[id];
+  // kiểm tra trước khi trả tiền: người Nhật ngại nhận quà liên tục (phải đáp lễ — お返し)
+  if (P(S, id).gift === S.day) { await modal({ who: d.name, text: `${esc(d.name)} ngại ngùng xua tay: "Hôm nay nhận rồi mà…"<br><span class="dim">Ở Nhật, nhận quà là phải nghĩ tới chuyện đáp lễ (お返し) — tặng dồn dập khiến người ta khó xử. Mỗi ngày một món là đủ.</span>` }); return; }
   const v = await modal({
     who: d.name, title: `🎁 Tặng quà cho ${d.name}`,
     choices: [
-      ...Object.entries(GIFTS).map(([gid, g]) => ({ label: `${g.name} · ${yen(g.cost)}`, value: gid, disabled: S.money < g.cost, reason: 'Không đủ tiền' })),
+      ...Object.entries(GIFTS).map(([gid, g]) => ({ label: `${g.name} · ${yen(g.cost)}${hackOn(S) && d.likes.includes(gid) ? ' ⭐' : ''}`, value: gid, disabled: S.money < g.cost, reason: 'Không đủ tiền' })),
       ...(S.inv.plush ? [{ label: '🧸 Gấu bông gắp được ở game center', sub: `Còn ${S.inv.plush} con`, value: 'plush' }] : []),
       { label: 'Thôi', value: null, cancel: true },
     ],
@@ -113,7 +159,6 @@ export async function giveGift(S, id) {
   const g = v === 'plush' ? { name: 'Gấu bông', cost: 0 } : GIFTS[v];
   if (v === 'plush') S.inv.plush--; else pay(S, g.cost, 'gift', `Quà cho ${d.name}`);
   const p = P(S, id);
-  if (p.gift === S.day) { await modal({ text: `${d.name} ngại ngùng: "Hôm nay nhận rồi mà…"` }); return; }
   p.gift = S.day;
   const bday = d.traits && isBirthday(S, id);
   const like = d.likes.includes(v) || (v === 'plush' && d.traits && d.traits.agr > 0.5);
@@ -133,8 +178,8 @@ export async function invite(S, id) {
   if (d.traits) {
     const st0 = stateOf(S, id);
     const pAcc = acceptInvite(d.traits, P(S, id).aff, moodToday(S, id), st0.act === 'work' || st0.act === 'sleep');
-    if (Math.random() > pAcc) {
-      await modal({ who: d.name, title: '🙏 Từ chối', text: st0.act === 'work' ? `${esc(d.name)}: "Mình đang làm, hôm khác nhé!"` : `${esc(d.name)}: "Hôm nay mình hơi mệt… để dịp khác nha."` });
+    if (dayRoll(S, id, 'invite') > pAcc) {
+      await modal({ who: d.name, title: '🙏 Từ chối', text: `${esc(d.name)}: ${refuseLine(S, id, st0.act)}<br><span class="dim">Vì sao: ${esc(reasons({ tr: d.traits, aff: P(S, id).aff, mood: moodToday(S, id), act: st0.act }))}</span>${hackPct(S, pAcc)}` });
       return;
     }
   }
@@ -152,11 +197,12 @@ export async function invite(S, id) {
 // Các lựa chọn với một người (dùng trong menu địa điểm và danh bạ)
 export function personActions(S, id) {
   const d = PEOPLE[id], p = P(S, id);
-  const a = [{ label: `💬 Nói chuyện với ${d.name}`, sub: p.met ? `${stageName(p.aff)} · ${Math.round(p.aff)}/100` : esc(d.role), minutes: 15, cond: (s) => (P(s, id).talked === s.day ? 'Hôm nay đã nói chuyện rồi' : null), run: (s) => talkTo(s, id) }];
-  if (p.met) a.push({ label: `🎁 Tặng quà ${d.name}`, run: (s) => giveGift(s, id) });
+  const talkP = d.traits && p.met ? willTalk(d.traits, moodToday(S, id)) * (stateOf(S, id).act === 'work' ? 0.75 : 1) : 1;
+  const a = [{ label: `💬 Nói chuyện với ${d.name}`, sub: p.met ? `${stageName(p.aff)} · ${Math.round(p.aff)}/100${d.traits ? ` · khả năng muốn nói chuyện: ${hackOn(S) ? Math.round(talkP * 100) + '%' : chanceWord(talkP)}` : ''}${repeatNote(S, p, 'talk')}` : esc(d.role), minutes: 15, run: (s) => talkTo(s, id) }];
+  if (p.met) a.push({ label: `🎁 Tặng quà ${d.name}`, sub: p.gift === S.day ? 'Hôm nay đã tặng rồi — người Nhật ngại nhận quà dồn dập' : '', run: (s) => giveGift(s, id) });
   if (p.met && d.traits) {
-    a.push({ label: '🗨️ Trò chuyện theo chủ đề', sub: 'Tìm hiểu sở thích · tối đa 3 lần/ngày', minutes: 15, cond: (s) => { const c = P(s, id).chat; return c && c.d === s.day && c.n >= 3 ? 'Hôm nay nói chuyện đủ rồi' : null; }, run: (s) => chatTopic(s, id) });
-    a.push({ label: `📅 Rủ ${d.name} đi chơi`, sub: 'Cà phê, xem phim, karaoke, công viên, ăn tối…', cond: (s) => (stageIdx(P(s, id).aff) < 1 && (P(s, id).att || 0) < 40 ? 'Chưa đủ thân (cần quen biết)' : null), run: (s) => inviteDate(s, id) });
+    a.push({ label: '🗨️ Trò chuyện theo chủ đề', sub: `Tìm hiểu sở thích${repeatNote(S, p, 'chat')}`, minutes: 15, run: (s) => chatTopic(s, id) });
+    a.push({ label: `📅 Rủ ${d.name} đi chơi`, sub: 'Cà phê, xem phim, karaoke, công viên, ăn tối…', cond: (s) => (stageIdx(P(s, id).aff) < 1 && (P(s, id).att || 0) < 40 ? 'Chưa đủ thân (cần quen biết, hoặc có chút rung động)' : null), run: (s) => inviteDate(s, id) });
   }
   if (hooks.extra) a.push(...hooks.extra(S, id));
   return a;

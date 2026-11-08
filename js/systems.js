@@ -1,7 +1,7 @@
 // Nối các hệ thống vào bus sự kiện. Thứ tự ưu tiên: số nhỏ chạy trước.
 // Mỗi handler nhận (S, ctx). ctx.msgs = thông báo gom vào màn tóm tắt buổi sáng.
 import { bus } from './bus.js';
-import { clamp, isWorkday, addLog, seasonIdx, SEASONS, doy, year, ensureAttr, dow } from './state.js';
+import { clamp, isWorkday, addLog, seasonIdx, SEASONS, doy, year, ensureAttr, dow, luckP } from './state.js';
 import { payroll } from './payroll.js';
 import { socialDaily, atLeast } from './social.js';
 import { careerMorning } from './career.js';
@@ -14,9 +14,11 @@ import { invalidateMap } from './town.js';
 import { aiMorningMsgs, aiProactive } from './ai/proactive.js';
 import { ensureHomes } from './homes.js';
 import { bankMonthEnd } from './bank.js';
+import { homePlanMonthEnd } from './debts.js';
+import { enforceLocks } from './hack.js';
 import { jobsMonthEnd, employed, ensureEmp } from './jobs.js';
 import { modal } from './ui.js';
-import { isBirthday } from './dating.js';
+import { isBirthday, affairDaily } from './dating.js';
 import { PEOPLE } from './ai/world.js';
 
 // ---------- cuối ngày (trước khi sang ngày mới) ----------
@@ -35,7 +37,7 @@ bus.on('day:end', 30, (S, ctx) => {
     S.sick--;
     S.health = clamp(S.health - 4);
     ctx.msgs.push(S.sick === 0 ? '🙂 Bạn đã khỏi cảm.' : '🤒 Vẫn còn ốm — nên đi khám hoặc uống thuốc.');
-  } else if (S.health < 35 && Math.random() < 0.35) {
+  } else if (S.health < 35 && Math.random() < luckP(S, 0.35, false)) {
     S.sick = 3;
     ctx.msgs.push('🤒 Cơ thể kiệt sức, bạn bị cảm rồi.');
   }
@@ -53,6 +55,7 @@ bus.on('day:start', 6, (S, ctx) => {
   // sinh nhật người quen
   for (const id of Object.keys(S.npc || {})) if (S.npc[id].met && S.npc[id].aff >= 40 && PEOPLE[id] && PEOPLE[id].traits && isBirthday(S, id)) ctx.msgs.push(`🎂 Hôm nay là sinh nhật ${PEOPLE[id].name}! Tặng quà hôm nay được thêm thiện cảm.`);
 }, 'Chỉ số phụ, sinh nhật');
+bus.on('day:start', 90, (S) => { enforceLocks(S); }, 'hack: khóa cứng chỉ số');
 bus.on('day:start', 10, (S, ctx) => {
   if (seasonIdx(S) !== ctx.prevSeason) {
     invalidateMap();
@@ -66,6 +69,7 @@ bus.on('day:start', 10, (S, ctx) => {
 bus.on('month:end', 10, (S, ctx) => { ctx.msgs.push(payroll(S)); }, 'lương tháng');
 bus.on('month:end', 12, (S, ctx) => { jobsMonthEnd(S, ctx); }, 'việc làm: thử việc, thăng chức, thất nghiệp');
 bus.on('month:end', 15, (S, ctx) => { bankMonthEnd(S, ctx); }, 'ngân hàng, thị trường, trả góp');
+bus.on('month:end', 16, (S, ctx) => { homePlanMonthEnd(S, ctx); }, 'tự động trả nợ quê');
 bus.on('month:end', 20, async (S, ctx) => {
   const fw = await familyWeekly(S);
   ctx.msgs.push(...fw.msgs);
@@ -86,6 +90,7 @@ bus.on('morning', 10, async (S, ctx) => {
 }, 'visa');
 bus.on('morning', 20, (S) => loanCheck(S), 'đòi nợ');
 bus.on('morning', 30, (S) => romanceDaily(S), 'tình cảm');
+bus.on('morning', 32, (S) => affairDaily(S), 'quan hệ bí mật: ngỏ ý ly hôn');
 bus.on('morning', 40, async (S, ctx) => { if (ctx.famEvent) { await runFamilyEvent(S, ctx.famEvent); return 'stop'; } return null; }, 'chuyện gia đình');
 bus.on('morning', 50, async (S) => ((await examMorning(S)) ? 'stop' : null), 'JLPT');
 bus.on('morning', 55, (S) => aiProactive(S), 'NPC chủ động');

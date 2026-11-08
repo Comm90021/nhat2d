@@ -6,8 +6,9 @@
 import { G, applyFx, advance, addLog, clamp, yen, MIDNIGHT, dow, seasonIdx, doy, ensureAttr } from './state.js';
 import { modal, chips, toast, esc } from './ui.js';
 import { PEOPLE, P, gain, stageIdx, stageName, affBar } from './social.js';
-import { rnd } from './ai/rules.js';
-import { acceptInvite } from './ai/rules.js';
+import { rnd, acceptInvite, dayRoll, reasons, chanceWord } from './ai/rules.js';
+import { refuseLine, hackPct, repeatMult } from './social.js';
+import { hackOn } from './hackflag.js';
 import { stateOf, stateAtHour, moodToday, moodInfo, adjustMood } from './ai/sim.js';
 import { AI_PLACES } from './ai/world.js';
 import { TOPICS_A } from './content/talk_a.js';
@@ -17,6 +18,8 @@ import { DATES_B } from './content/dates_b.js';
 import { pay } from './finance.js';
 import { sfx } from './audio.js';
 import { myPlace } from './jobs.js';
+import { DIVORCE } from './content/divorce.js';
+import { luckP } from './state.js';
 
 export const TOPICS = [...TOPICS_A, ...TOPICS_B];
 export const DATES = { ...DATES_A, ...DATES_B };
@@ -78,13 +81,11 @@ export function romanceGate(S, id) {
   if (d.age < 18) return { ok: false, reason: 'Chưa đủ 18 tuổi' };
   if (!playerLikes(S, d)) return { ok: false, reason: 'Không phải giới bạn chọn để yêu' };
   if (!attractedTo(d, S.gender)) return { ok: false, reason: `${d.name} không có cảm xúc kiểu đó với ${S.gender === d.gender ? 'người cùng giới' : 'người khác giới'}` };
-  // chênh lệch tuổi quá xa thì người kia không nghĩ theo hướng đó (giới hạn nới rộng theo tuổi)
-  const myAge = (S.age || 22) + Math.floor((S.day - 1) / 84);
-  const gap = Math.abs(d.age - myAge), lim = 10 + Math.round(Math.min(d.age, myAge) / 4);
-  if (gap > lim) return { ok: false, reason: `${d.name} coi bạn như ${d.age > myAge ? 'con cháu' : 'em nhỏ'} (chênh ${gap} tuổi)` };
+  // tuổi tác không ngăn cách: từ 18 trở lên đều được
   if (d.married) {
-    if (d.traits.loy >= 0.55) return { ok: false, reason: `${d.name} đã có gia đình và rất chung thủy` };
-    return { ok: true, affair: true, reason: `${d.name} đã có gia đình` };
+    const bond = d.household && d.household.bond != null ? d.household.bond : 0.6;
+    if (d.traits.loy >= 0.55 && bond >= 0.35) return { ok: false, reason: `${d.name} đã có gia đình, vợ chồng còn rất gắn bó` };
+    return { ok: true, affair: true, reason: `${d.name} đã có gia đình${bond < 0.35 ? ' (hôn nhân đang nguội lạnh)' : ''}` };
   }
   return { ok: true };
 }
@@ -136,35 +137,41 @@ export const isBirthday = (S, id) => prefsOf(S, id).birthday === doy(S);
 const fill = (s, S, d) => s.replace(/\{me\}/g, S.name).replace(/\{npc\}/g, d.name);
 export async function chatTopic(S, id) {
   const d = PEOPLE[id], p = P(S, id);
-  if (!p.chat || p.chat.d !== S.day) p.chat = { d: S.day, n: 0 };
-  if (p.chat.n >= 3) { toast(`${d.name} có vẻ muốn làm việc khác rồi.`); return; }
   const k = known(p), st = stageIdx(p.aff);
+  const pr = prefsOf(S, id), A = ensureAttr(S);
+  const mood = moodToday(S, id);
+  const scoreOf = (topic) => {
+    let s = pr.topics[topic] + (mood - 50) / 120 + (A.soc - 30) / 250;
+    if (['love', 'worry', 'money'].includes(topic) && st < 2) s -= 0.45;
+    if (topic === 'praise' && st === 0) s -= 0.2;
+    if (topic === 'love' && (P(S, id).att || 0) > 50) s += 0.3;
+    return s;
+  };
+  const hack = hackOn(S);
+  const best = hack ? TOPICS.reduce((b, t) => (scoreOf(t.id) > scoreOf(b.id) ? t : b), TOPICS[0]).id : null;
   const topic = await modal({
     who: `${d.name} · ${moodInfo(S, id).icon} ${moodInfo(S, id).name}`, title: '🗨️ Nói chuyện về…',
     html: knownHtml(S, id),
     choices: [...TOPICS.map((t) => {
       const deep = ['love', 'worry', 'money'].includes(t.id);
       const mark = k.t[t.id] === 'like' ? ' 😊' : k.t[t.id] === 'dislike' ? ' 😒' : '';
-      return { label: `${t.icon} ${t.label}${mark}`, value: t.id, sub: deep && st < 2 ? 'Chủ đề riêng tư — người chưa thân dễ ngại' : '' };
+      const hm = hack ? (t.id === best ? ' ⭐' : scoreOf(t.id) > 0.22 ? ' ✅' : scoreOf(t.id) < -0.12 ? ' ✖' : '') : '';
+      return { label: `${t.icon} ${t.label}${mark}${hm}`, value: t.id, sub: deep && st < 2 ? 'Chủ đề riêng tư — người chưa thân dễ ngại' : '' };
     }), { label: '← Thôi', value: null, cancel: true }],
   });
   if (!topic) return;
   const T = TOPICS.find((x) => x.id === topic);
-  p.chat.n++;
+  const rep = repeatMult(S, p, 'chat', isPartner(S, id));
+  if (rep < 0) { gain(S, id, -1); await modal({ who: d.name, text: `${esc(d.name)} liếc đồng hồ: "Hôm nay mình nói chuyện nhiều quá rồi, để lần sau nhé." Nói dồn dập quá cũng khiến người ta mệt.`, html: chips([['aff', -1]]) }); return; }
   advance(S, 15);
-  const pr = prefsOf(S, id), A = ensureAttr(S);
-  const mood = moodToday(S, id);
-  let score = pr.topics[topic] + (mood - 50) / 120 + (A.soc - 30) / 250;
-  if (['love', 'worry', 'money'].includes(topic) && st < 2) score -= 0.45;
-  if (topic === 'praise' && st === 0) score -= 0.2;
-  if (topic === 'love' && (P(S, id).att || 0) > 50) score += 0.3;
+  const score = scoreOf(topic);
   const r = score > 0.22 ? 'like' : score < -0.12 ? 'dislike' : 'neutral';
   k.t[topic] = r;
   const pool = T[r][d.jp ? 'jp' : 'vn'];
   const line = fill(pool[Math.floor(Math.random() * pool.length)], S, d);
   const ask = fill(T.ask[Math.floor(Math.random() * T.ask.length)], S, d);
-  const affD = r === 'like' ? 4 : r === 'neutral' ? 1 : -2;
-  const attD = r === 'like' && ['love', 'praise', 'dream', 'hobby', 'movie', 'joke'].includes(topic) ? 3 : r === 'like' ? 1 : r === 'dislike' ? -1 : 0;
+  const affD = r === 'like' ? Math.max(1, Math.round(4 * rep)) : r === 'neutral' ? 1 : -2;
+  const attD = r === 'like' && ['love', 'praise', 'dream', 'hobby', 'movie', 'joke'].includes(topic) ? Math.max(1, Math.round(3 * rep)) : r === 'like' ? 1 : r === 'dislike' ? -1 : 0;
   gain(S, id, affD);
   const da = attD ? addAtt(S, id, attD) : 0;
   adjustMood(S, id, r === 'like' ? 4 : r === 'dislike' ? -4 : 0);
@@ -195,12 +202,14 @@ export async function inviteDate(S, id) {
   for (const h of [12, 15, 19]) if (h * 60 > now) slots.push({ at: h * 60, label: `Hôm nay ${h}:00` });
   const at = slots.length > 1 ? await modal({ who: d.name, title: '📅 Hẹn lúc nào?', choices: [...slots.map((s) => ({ label: s.label, value: s.at })), { label: '← Thôi', value: null, cancel: true }] }) : now;
   if (!at) return;
+  const prS = prefsOf(S, id), hack = hackOn(S);
+  const bestSpot = hack ? Object.keys(SPOTS).filter((k2) => !spotAvailable(S, k2, at)).sort((a, b) => prS.spots[b] - prS.spots[a])[0] : null;
   const key = await modal({
     who: d.name, title: `📍 Rủ ${d.name} đi đâu?`, html: knownHtml(S, id),
     choices: [...Object.keys(SPOTS).map((k2) => {
       const why = spotAvailable(S, k2, at);
       const D = DATES[k2], s = SPOTS[k2];
-      return { label: `${D.icon} ${D.name}${k.s[k2] === 'like' ? ' 😊' : ''}`, sub: `${s.cost ? 'khoảng ' + yen(s.cost) : 'miễn phí'} · ${Math.round(s.min / 60 * 10) / 10} tiếng`, value: k2, disabled: !!why || S.money < s.cost, reason: why || 'Không đủ tiền' };
+      return { label: `${D.icon} ${D.name}${k.s[k2] === 'like' ? ' 😊' : ''}${k2 === bestSpot ? ' ⭐' : hack && prS.spots[k2] > 0.15 ? ' ✅' : ''}`, sub: `${s.cost ? 'khoảng ' + yen(s.cost) : 'miễn phí'} · ${Math.round(s.min / 60 * 10) / 10} tiếng`, value: k2, disabled: !!why || S.money < s.cost, reason: why || 'Không đủ tiền' };
     }), { label: '← Thôi', value: null, cancel: true }],
   });
   if (!key) return;
@@ -210,10 +219,11 @@ export async function inviteDate(S, id) {
   const pr = prefsOf(S, id);
   let chance = acceptInvite(d.traits, p.aff + (p.att || 0) * 0.5, moodToday(S, id), busy) * (1 + pr.spots[key] * 0.6);
   if (isPartner(S, id)) chance = Math.max(chance, busy ? 0.15 : 0.85);
+  chance = Math.min(0.97, chance);
   advance(S, 5);
-  if (Math.random() > Math.min(0.97, chance)) {
-    p.aff = clamp(p.aff - (d.traits.agr > 0.6 ? 0 : 1));
-    await modal({ who: `📱 ${d.name}`, title: '🙏 Không đi được', text: busy ? `"Giờ đó mình ${busyAct === 'work' ? 'phải đi làm' : 'ngủ mất rồi'}, hôm khác nhé!"` : `"Hôm nay mình không có hứng lắm… để dịp khác nha."` });
+  if (dayRoll(S, id, 'date:' + key) > chance) {
+    const mood = moodToday(S, id);
+    await modal({ who: `📱 ${d.name}`, title: '🙏 Không đi được', text: `${busy ? `"Giờ đó mình ${busyAct === 'work' ? 'phải đi làm' : 'ngủ mất rồi'}, hôm khác nhé!"` : refuseLine(S, id, busyAct)}<br><span class="dim">Vì sao: ${esc(reasons({ tr: d.traits, aff: p.aff, mood, act: busy ? busyAct : '', att: p.att || 0 }))}${pr.spots[key] < -0.15 ? ' · không thích chỗ này lắm' : ''}. Đổi giờ, đổi chỗ, hoặc đợi lúc người ấy vui hơn.</span>${hackPct(S, chance)}` });
     return;
   }
   const s = SPOTS[key];
@@ -241,7 +251,8 @@ export async function runDate(S, id, key) {
   const evs = [...D.events].sort(() => Math.random() - 0.5).slice(0, 2);
   for (const e of evs) {
     const opts = [...e.choices].sort(() => Math.random() - 0.5);
-    const i = await modal({ who: `${D.icon} ${D.name} · ${d.name}`, title: D.jp || D.name, text: esc(fill(e.text, S, d)), choices: opts.map((c, j) => ({ label: esc(fill(c[0], S, d)), value: j })) });
+    const bestJ = hackOn(S) ? opts.reduce((b, c, j) => (pr.tones[c[1]] > pr.tones[opts[b][1]] ? j : b), 0) : -1;
+    const i = await modal({ who: `${D.icon} ${D.name} · ${d.name}`, title: D.jp || D.name, text: esc(fill(e.text, S, d)), choices: opts.map((c, j) => ({ label: esc(fill(c[0], S, d)) + (j === bestJ ? ' ⭐' : ''), value: j })) });
     const tone = opts[i][1];
     const sc = pr.tones[tone] + (Math.random() - 0.5) * 0.3 + ((p.att || 0) > 60 && tone === 'bold' ? 0.3 : 0);
     if (sc > 0.15) { affT += 3; attT += 4; await modal({ who: d.name, text: `${esc(d.name)} ${['cười tươi', 'đỏ mặt cười', 'gật đầu thích thú', 'nhìn bạn lâu hơn một chút'][Math.floor(Math.random() * 4)]}. Có vẻ rất hợp ý.` }); }
@@ -263,6 +274,7 @@ export async function runDate(S, id, key) {
   sfx('good');
   await modal({ who: d.name, title: `💕 Kết thúc buổi đi chơi`, text: `${split ? 'Hai người chia đôi tiền (割り勘). ' : ''}${spotLike ? `${esc(d.name)} có vẻ rất thích chỗ này.` : 'Một buổi đi chơi vui vẻ.'}`, html: chips(out) + affBar(p.aff) + heartsHtml(S, id) });
   if (up) toast(`💞 ${d.name}: ${stageName(p.aff)}`);
+  if (id === 'yamada') await yamadaBeat(S);
   // cuối buổi hẹn buổi tối: cơ hội tỏ tình / ở lại
   const g = romanceGate(S, id);
   if (g.ok && S.time >= 18 * 60) {
@@ -283,15 +295,18 @@ export function confessReason(S, id) {
   if (g.affair && p.aff < 50) return 'Chưa đủ thân (cần 💞 50)';
   return null;
 }
+export function confessChance(S, id) {
+  const p = P(S, id), g = romanceGate(S, id), A = ensureAttr(S);
+  return sig(0.12 * ((p.att || 0) - 62) + 0.04 * (p.aff - 35) + 0.03 * (moodToday(S, id) - 50) + (A.soc - 30) / 60 - (g.affair ? 0.8 : 0));
+}
 export async function confess(S, id) {
   const d = PEOPLE[id], p = P(S, id), g = romanceGate(S, id);
   const r = confessReason(S, id);
   if (r) { await modal({ title: '💗 Tỏ tình', text: r }); return; }
-  const A = ensureAttr(S);
-  const chance = sig(0.12 * ((p.att || 0) - 62) + 0.04 * (p.aff - 35) + 0.03 * (moodToday(S, id) - 50) + (A.soc - 30) / 60 - (g.affair ? 0.8 : 0));
-  await modal({ who: d.name, title: '💗 Tỏ tình', text: g.affair ? `Bạn biết ${esc(d.name)} đã có gia đình. Nhưng bạn vẫn nói ra: "Mình… có tình cảm với bạn."` : `Bạn lấy hết can đảm${d.jp ? ': 「好きです。付き合ってください」' : ': "Mình thích bạn. Mình hẹn hò nhé?"'}`, ok: 'Hồi hộp…' });
+  const chance = luckP(S, confessChance(S, id), true);
+  await modal({ who: d.name, title: '💗 Tỏ tình', text: (g.affair ? `Bạn biết ${esc(d.name)} đã có gia đình. Nhưng bạn vẫn nói ra: "Mình… có tình cảm với bạn."` : `Bạn lấy hết can đảm${d.jp ? ': 「好きです。付き合ってください」' : ': "Mình thích bạn. Mình hẹn hò nhé?"'}`) + hackPct(S, chance), ok: 'Hồi hộp…' });
   advance(S, 20);
-  if (Math.random() < chance) {
+  if (dayRoll(S, id, 'confess') < chance) {
     if (g.affair) { S.affairs = S.affairs || {}; S.affairs[id] = { since: S.day, nights: 0 }; addLog(S, `Bắt đầu mối quan hệ bí mật với ${d.name}`); }
     else { S.love = { id, stage: 'dating', since: S.day, lastDate: S.day, touch: 0 }; addLog(S, `Bắt đầu hẹn hò với ${d.name}`); }
     gain(S, id, 5); addAtt(S, id, 8);
@@ -327,7 +342,7 @@ export function touchActions(S, id) {
 async function touch(S, id, lv) {
   const d = PEOPLE[id], p = P(S, id), T = TOUCH[lv];
   const L = S.love && S.love.id === id ? S.love : S.affairs[id];
-  const ok = Math.random() < sig(((p.att || 0) - T.need) / 7 + (moodToday(S, id) - 50) / 40);
+  const ok = dayRoll(S, id, 'touch' + lv) < sig(((p.att || 0) - T.need) / 7 + (moodToday(S, id) - 50) / 40);
   if (ok) { L.touch = lv + 1; addAtt(S, id, 3); const out = applyFx(S, { mood: 8, stress: -4 }); await modal({ who: d.name, title: T.label, text: T.txt, html: chips(out) }); }
   else await modal({ who: d.name, title: T.label, text: `${esc(d.name)} hơi lùi lại, cười ngượng: "Từ từ đã nhé…" Tôn trọng nhịp của người ấy — không sao cả.` });
 }
@@ -338,17 +353,19 @@ export async function stayOver(S, id) {
   const d = PEOPLE[id], p = P(S, id), adult = !!(S.settings && S.settings.adult);
   const affair = isAffair(S, id);
   const uid = d.home && d.home.startsWith('u:') ? d.home.slice(2) : null;
-  const homeFree = uid && !others(S, id, uid, 23).length;
+  const there = uid ? others(S, id, uid, 23) : [];
+  const homeFree = uid && !there.length;
   const choices = [];
-  if (uid) choices.push({ label: `🏠 Về nhà ${d.name}`, value: 'npc', disabled: !homeFree, reason: 'Nhà có người khác ở nhà' });
+  if (uid) choices.push({ label: `🏠 Về nhà ${d.name}`, value: 'npc', disabled: !homeFree, reason: `⚠️ Đêm nay ở nhà có: ${there.map((x) => `${PEOPLE[x].name}${PEOPLE[x].id === d.spouse || x === d.spouse ? (PEOPLE[x].gender === 'm' ? ' (chồng)' : ' (vợ)') : ''}`).join(', ')}` });
   if (S.home && S.home.unit) choices.push({ label: '🏠 Về nhà bạn', value: 'mine' });
   choices.push({ label: '🏨 Khách sạn (¥8,000)', value: 'hotel', disabled: S.money < 8000, reason: 'Không đủ tiền' });
   choices.push({ label: '← Thôi', value: null, cancel: true });
   const where = await modal({ who: d.name, title: '🌙 Ở đâu?', text: 'Ký túc xá có người ở chung và có nội quy không cho người ngoài ở lại qua đêm.', choices });
   if (!where) return;
   // đồng thuận của người kia: tính theo rung động, tâm trạng; có thể từ chối
-  const yes = Math.random() < sig(((p.att || 0) - 65) / 7 + (moodToday(S, id) - 50) / 40 + 0.8);
-  if (!yes) { await modal({ who: d.name, text: `${esc(d.name)} lắc đầu nhẹ: "Hôm nay mình muốn về nhà. Hẹn lần sau nhé." Không sao — tôn trọng quyết định của nhau.` }); return; }
+  const pYes = sig(((p.att || 0) - 65) / 7 + (moodToday(S, id) - 50) / 40 + 0.8);
+  const yes = dayRoll(S, id, 'stay') < pYes;
+  if (!yes) { await modal({ who: d.name, text: `${esc(d.name)} lắc đầu nhẹ: "Hôm nay mình muốn về nhà. Hẹn lần sau nhé." Không sao — tôn trọng quyết định của nhau.<br><span class="dim">Vì sao: ${esc(reasons({ tr: d.traits, aff: p.aff, mood: moodToday(S, id), att: p.att || 0 }))}</span>${hackPct(S, pYes)}` }); return; }
   let protectedSex = true;
   if (adult) {
     const v = await modal({ who: d.name, title: '🔞 Xác nhận', text: `${esc(d.name)} nhìn bạn: "Bạn chắc chứ?" Cả hai đều muốn điều này.`, choices: [{ label: '💗 Có, mình chắc', value: 'yes' }, { label: 'Để lần sau', value: null, cancel: true }] });
@@ -380,6 +397,8 @@ async function affairRisk(S, id, where, uid) {
   let risk = 0.04 + A.nights * 0.015;
   if (where === 'npc' && spouse) risk += 0.12 + (spouse.job ? 0 : 0.15);
   if (where === 'hotel') risk += d.job && d.job.place === myPlace(S) ? 0.06 : 0.02;
+  if (d.household && d.household.spouseAway) risk *= 0.5;
+  risk = luckP(S, risk, false);
   if (Math.random() > risk) {
     if (Math.random() < 0.08) S.world.gossip.unshift({ d: S.day, t: `🤫 Có người thấy ${d.name} đi cùng một người lạ vào buổi tối…` });
     return;
@@ -389,6 +408,14 @@ async function affairRisk(S, id, where, uid) {
 export async function discovered(S, id) {
   const d = PEOPLE[id], spouse = d.spouse && PEOPLE[d.spouse];
   sfx('bad');
+  // nhánh: người ấy bỏ đi và chọn bạn (hôn nhân càng nguội càng dễ)
+  const bond = d.household && d.household.bond != null ? d.household.bond : 0.6;
+  if (!S.love && Math.random() < luckP(S, 0.3 * (1 - bond) + ((P(S, id).att || 0) >= 80 ? 0.15 : 0), true)) {
+    const t = pickText(DIVORCE.leave, S, d);
+    await modal({ who: d.name, title: t.title, text: t.text });
+    await doDivorce(S, id, true);
+    return;
+  }
   if (spouse) { const sp = P(S, d.spouse); sp.met = true; sp.aff = 0; }
   P(S, id).aff = clamp(P(S, id).aff - 20);
   delete S.affairs[id];
@@ -399,4 +426,74 @@ export async function discovered(S, id) {
   addLog(S, `Bị phát hiện ngoại tình với ${d.name}`);
   await modal({ who: spouse ? spouse.name : 'Hàng xóm', title: '💥 Bị phát hiện', text: `${spouse ? `${esc(spouse.name)} — ${spouse.gender === 'm' ? 'chồng' : 'vợ'} của ${esc(d.name)} — đã biết hết.` : 'Chuyện của hai người đã bị lộ.'} Gia đình ${esc(d.name)} rạn nứt, mọi người bàn tán.${boss ? '<br>Ở chỗ làm, chuyện quan hệ với cấp trên khiến bạn mất uy tín nghiêm trọng; công ty xem xét kỷ luật.' : ''}`, html: chips(out) });
   if (boss && S.emp && S.emp.perf) S.emp.perf.push(0.1);
+}
+
+// ---------- khoảnh khắc riêng của chị Yamada (theo hoàn cảnh ngẫu nhiên của save) ----------
+export async function yamadaBeat(S) {
+  const p = P(S, 'yamada'), v = S.world && S.world.yamada;
+  if (!v || !p.met) return;
+  const { YAMADA_VARIANTS, YAMADA_MILESTONES } = await import('./content/yamada_routes.js');
+  const Y = YAMADA_VARIANTS[v];
+  const ci = p.yc || 0;
+  if (Y && ci < Y.confide.length && p.aff >= [40, 60, 80][ci]) {
+    p.yc = ci + 1;
+    await modal({ who: `Chị Yamada · ${Y.label}`, title: '🍵 Chị Yamada tâm sự', text: esc(Y.confide[ci]) });
+    return;
+  }
+  const mi = p.ym || 0, M = YAMADA_MILESTONES[mi];
+  if (M && romanceGate(S, 'yamada').ok && (p.att || 0) >= M.att) {
+    p.ym = mi + 1;
+    await modal({ who: 'Chị Yamada', title: M.title, text: esc(M.text) });
+  }
+}
+
+// ---------- ly hôn để đến với bạn ----------
+const pickOne = (a) => a[Math.floor(Math.random() * a.length)];
+function fillD(s, S, d) {
+  const H = d.household || {}, sp = d.spouse && PEOPLE[d.spouse];
+  const kid = (H.kids || []).length ? (H.kids[0].g === 'm' ? 'con trai' : 'con gái') : '';
+  return String(s).replace(/\{name\}/g, d.name).replace(/\{spouse\}/g, sp ? sp.name : (H.spouseAway || 'người kia').split(' (')[0]).replace(/\{kid\}/g, kid);
+}
+function pickText(arr, S, d) { const t = pickOne(arr); return typeof t === 'string' ? fillD(t, S, d) : { title: fillD(t.title, S, d), text: fillD(t.text, S, d) }; }
+export function divorceReady(S, id) {
+  const A = S.affairs && S.affairs[id], d = PEOPLE[id], p = P(S, id);
+  if (!A || !d || !d.married) return false;
+  const bond = d.household && d.household.bond != null ? d.household.bond : 0.6;
+  return (p.att || 0) >= 80 && p.aff >= 70 && (bond < 0.4 || S.day - A.since >= 14) && !(A.askCD && S.day < A.askCD);
+}
+// Gọi mỗi sáng: người đang có quan hệ bí mật với bạn có thể ngỏ ý ly hôn
+export async function affairDaily(S) {
+  for (const id of Object.keys(S.affairs || {})) {
+    if (!divorceReady(S, id)) continue;
+    const d = PEOPLE[id], t = pickText(DIVORCE.ask, S, d);
+    const v = await modal({
+      who: d.name, title: t.title, text: t.text + (S.love ? `<br><span class="dim">⚠️ Bạn đang hẹn hò với ${esc(PEOPLE[S.love.id].name)} — ủng hộ nghĩa là chia tay người đó.</span>` : ''),
+      choices: [
+        { label: '💞 Ủng hộ — mình sẽ ở bên bạn', value: 'support' },
+        { label: '⏳ Hãy suy nghĩ thêm đã', value: 'wait' },
+        { label: '💔 Mình nghĩ nên dừng lại', value: 'stop' },
+      ],
+    });
+    if (v === 'support') { await modal({ who: d.name, text: pickText(DIVORCE.support, S, d) }); await doDivorce(S, id, false); }
+    else if (v === 'wait') { S.affairs[id].askCD = S.day + 7; await modal({ who: d.name, text: pickText(DIVORCE.wait, S, d) }); }
+    else { delete S.affairs[id]; P(S, id).att = clamp((P(S, id).att || 0) - 25); addLog(S, `Dừng quan hệ bí mật với ${d.name}`); await modal({ who: d.name, text: pickText(DIVORCE.stop, S, d) }); }
+    return;
+  }
+}
+// Ly hôn xong: tách hộ, công khai thành người yêu; cầu hôn được sau 7 ngày (thời gian chờ thủ tục)
+export async function doDivorce(S, id, leave) {
+  const d = PEOPLE[id], A = (S.affairs && S.affairs[id]) || {};
+  const { splitHousehold } = await import('./homes.js');
+  const sid = d.spouse;
+  splitHousehold(S, id);
+  if (S.affairs) delete S.affairs[id];
+  if (sid && S.npc && S.npc[sid]) S.npc[sid].aff = 0;
+  if (S.love && S.love.id !== id) { const old = PEOPLE[S.love.id]; P(S, S.love.id).aff = clamp(P(S, S.love.id).aff - 25); P(S, S.love.id).att = clamp((P(S, S.love.id).att || 0) - 40); addLog(S, `Chia tay ${old.name}`); }
+  S.love = { id, stage: 'dating', since: S.day, lastDate: S.day, touch: Math.max(2, A.touch || 0), proposeAfter: S.day + 7, ...(A.preg ? { pregnant: { start: A.preg, unplanned: true } } : {}) };
+  S.world.gossip.unshift({ d: S.day, t: pickText(DIVORCE.rumor, S, d) });
+  addLog(S, `${d.name} ly hôn và công khai hẹn hò với bạn`);
+  const out = applyFx(S, leave ? { rep: -6, mood: 5, stress: 10 } : { rep: -3, mood: 15 });
+  const t = pickText(DIVORCE.done, S, d);
+  sfx('end');
+  await modal({ who: d.name, title: t.title, text: `${t.text}<br><span class="dim">Ở Nhật, ly hôn thuận tình nộp 離婚届 ở tòa thị chính. Hai người giờ là người yêu công khai — sau 7 ngày có thể tính chuyện cầu hôn.</span>`, html: chips(out) });
 }

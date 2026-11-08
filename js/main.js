@@ -7,6 +7,10 @@ import { journeyHtml } from './career.js';
 import { openPhone } from './phone.js';
 import { openMap } from './mapview.js';
 import './systems.js';
+import { openCharSheet } from './charsheet.js';
+import { openWait } from './wait.js';
+import { openHack, enforceLocks } from './hack.js';
+import { hackOn } from './hackflag.js';
 import { ensureHomes } from './homes.js';
 import { ensureEmp } from './jobs.js';
 import { apptCheck } from './ai/proactive.js';
@@ -164,6 +168,7 @@ const HELP_HTML = `<ul class="help">
   <li>💞 <b>Quan hệ:</b> nói chuyện, tặng quà, rủ đi ăn để thân hơn. Người thân giúp bạn rất nhiều: gợi ý khi làm, giới thiệu việc, học nhanh hơn. Mở 📱 → "Ai ở đâu?" để biết gặp ai ở đâu. Cẩn thận người lạ rủ vay tiền, góp vốn, làm chui!</li>
   <li>🛂 <b>Visa:</b> năm đầu phải đỗ thi tay nghề 基礎級 ở chỗ làm để được gia hạn. Sau đó có thể lên TTS số 3, Kỹ năng đặc định, thậm chí thường trú.</li>
   <li>🧩 Ca làm là các câu hỏi tình huống. Thích chơi mini-game thì bật trong menu ⏸.</li>
+  <li>⌨️ <b>M</b> bản đồ (đi bộ tới ngay / xe buýt / taxi) · <b>C</b> hồ sơ nhân vật · <b>Z</b> chờ đến giờ · giữ <b>Shift</b> để chạy.</li>
   <li>➡️ Mũi tên vàng cạnh nhân vật chỉ chỗ nên đến tiếp theo.</li>
 </ul>`;
 
@@ -201,7 +206,7 @@ function bookHtml(S) {
   return `<div class="payslip">${row('💴 Tiền mặt', yen(S.money))}${row('🧾 Lương chờ lĩnh', yen(S.wage))}${row('🏦 Nợ ở quê', vnd(Math.max(0, S.debt)))}${row('💸 Đã gửi về', vnd(S.stats.sentVnd))}${row('📅 Thời gian ở Nhật', `Năm ${year(S)} · ${S.day} ngày`)}${st}${row('👵 Câu bà Sato đã dạy', S.lang.phrases.length)}${row('🏭 Ca đã làm / đi muộn / nghỉ', `${S.stats.shifts} / ${S.stats.lates} / ${S.stats.absences}`)}</div>
     <h3>🛂 Visa & nghề nghiệp</h3>${journeyHtml(S)}
     <h3>🏡 Gia đình & tình cảm</h3>${familyHtml(S)}${loveHtml(S)}
-    <h3>📊 Chỉ số phụ</h3><div class="payslip">${ATTR_KEYS.map((k) => `<div class="prow"><span>${STAT_INFO[k].icon} ${STAT_INFO[k].label}</span><span>${Math.round(ensureAttr(S)[k])}/100</span></div><div class="pbar"><i style="width:${Math.round(ensureAttr(S)[k])}%${k === 'stress' ? ';background:#e35d5b' : ''}"></i></div>`).join('')}<div class="dim">💪 gym, chạy bộ · 🧠 thư viện, đọc sách · ✨ quần áo, cắt tóc · 🗣️ trò chuyện, karaoke · 🍳 nấu ăn · 😣 giảm bằng sentō, yoga, ngủ đủ</div></div>
+    <p class="dim">📊 Chỉ số phụ, may mắn, tay nghề, tín dụng: xem 👤 <b>Hồ sơ nhân vật</b> (phím C).</p>${hackOn(S) ? '<p class="hackpct">🛠️ Save có dùng chế độ hack</p>' : ''}
     <h3>💞 Mối quan hệ</h3><div class="payslip">${Object.keys(PEOPLE).filter((id) => S.npc && S.npc[id] && S.npc[id].met).map((id) => `<div class="prow"><span>${esc(PEOPLE[id].name)}${S.love && S.love.id === id ? ' 💞' : ''}${S.affairs && S.affairs[id] ? ' 🤫' : ''}</span><span>${stageName(S.npc[id].aff)} · ${Math.round(S.npc[id].aff)}${S.npc[id].att ? `  · 💗${Math.round(S.npc[id].att)}` : ''}</span></div>`).join('') || '<div class="dim">Chưa quen ai — mở 📱 → "Ai ở đâu?"</div>'}</div>
     <h3>🗣️ Tiếng Nhật — trình độ ${jpLevel(S)}${bestCert(S) ? ` · chứng chỉ ${bestCert(S)}` : ''}</h3>
     <div class="payslip">${levelStats(S.lang).map((l) => `<div class="prow"><span>${l.reached ? '✅' : '⬜'} ${l.lv}</span><span>${Math.min(100, Math.round((l.xp / l.need) * 100))}% · chính xác ${Math.round(l.acc * 100)}%</span></div>`).join('')}
@@ -221,15 +226,21 @@ $('btn-menu').onclick = () => {
       choices: [
         { label: '▶ Chơi tiếp', value: 'go', primary: true },
         { label: '🎮 Hướng dẫn', value: 'help' },
+        { label: '👤 Hồ sơ nhân vật', sub: 'Phím C', value: 'me' },
+        { label: '⏩ Chờ / bỏ qua thời gian', sub: 'Phím Z', value: 'wait' },
         { label: S0.settings.shiftMode === 'mini' ? '🎮 Ca làm: Mini-game' : '🧩 Ca làm: Trắc nghiệm', sub: 'Bấm để đổi', value: 'mode' },
         { label: isMuted() ? '🔇 Âm thanh: tắt' : '🔊 Âm thanh: bật', value: 'snd' },
         { label: S0.settings.minimap === false ? '🗺️ Bản đồ nhỏ: tắt' : '🗺️ Bản đồ nhỏ: bật', value: 'mini' },
         { label: S0.settings.adult ? '🔞 Nội dung 18+: bật' : '🔞 Nội dung 18+: tắt', sub: 'Chỉ chuyển cảnh, luôn có bước đồng thuận', value: 'adult' },
+        { label: hackOn(S0) ? '🛠️ Chế độ hack: đang bật' : '🛠️ Chế độ hack', sub: hackOn(S0) ? 'Mở bảng điều khiển' : 'Cần mật khẩu', value: 'hack' },
         { label: '✈️ Về nước (kết thúc hành trình)', value: 'home' },
         { label: '💾 Lưu & về màn hình chính', value: 'quit' },
       ],
     });
     if (v === 'help') await modal({ title: '🎮 Hướng dẫn', html: HELP_HTML });
+    if (v === 'me') await openCharSheet(S0);
+    if (v === 'wait') await openWait(S0);
+    if (v === 'hack') await openHack(S0);
     if (v === 'mode') { S0.settings.shiftMode = S0.settings.shiftMode === 'mini' ? 'quiz' : 'mini'; toast(S0.settings.shiftMode === 'mini' ? '🎮 Ca làm: Mini-game' : '🧩 Ca làm: Trắc nghiệm'); }
     if (v === 'home') {
       const ok = await modal({ title: 'Về nước thật sao?', text: 'Hành trình ở Nhật sẽ kết thúc và bạn xem tổng kết. Bản lưu sẽ bị xóa.', choices: [{ label: '✈️ Về nước', value: true }, { label: 'Ở lại', value: false, cancel: true }] });
@@ -290,10 +301,12 @@ function frame(now) {
     else if (ap && !ap.done && (S.time > ap.at + 120 || (here === ap.place && S.time >= ap.at - 30))) runFlow(() => apptCheck(S, here));
     else if (S.health <= 0 || S.mood <= 0 || S.rep <= 0) runFlow(() => critical(S));
     else if (input.hit('KeyM')) runFlow(() => openMap(S));
+    else if (input.hit('KeyC')) runFlow(() => openCharSheet(S));
+    else if (input.hit('KeyZ')) runFlow(() => openWait(S));
     else if (input.act() && townScene.target) { const t = townScene.target; runFlow(() => interact(t)); }
   }
   hudT -= dt;
-  if (hudT <= 0 && G.S && sc === townScene) { hudT = 0.2; updateHud(G.S, objective(G.S).text); }
+  if (hudT <= 0 && G.S && sc === townScene) { hudT = 0.2; enforceLocks(G.S); updateHud(G.S, objective(G.S).text); }
   drawPreview(dt);
   input.endFrame();
   requestAnimationFrame(frame);

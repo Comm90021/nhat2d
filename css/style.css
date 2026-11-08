@@ -143,3 +143,9 @@ input { font: inherit; font-size: 16px; color: var(--ink); background: rgba(0, 0
   .card h2 { font-size: 18px; }
   .multi { grid-template-columns: 1fr; }
 }
+
+/* v3.6: hack, hồ sơ nhân vật, ô nhập trong hộp thoại */
+.hackpct { color: #ffcf5a; font-size: 13px; font-weight: 600; }
+.small { font-size: 12px; line-height: 1.35; }
+#card input[type=number], #card input[type=password], #card select { background: #1d2440; color: #fff; border: 1px solid #3a4470; border-radius: 6px; padding: 3px 6px; font: inherit; }
+#card input[type=checkbox] { transform: scale(1.2); vertical-align: middle; }

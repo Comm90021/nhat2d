@@ -1,5 +1,5 @@
 // Các địa điểm trong thị trấn + nói chuyện với NPC.
-import { G, MIDNIGHT, RATE, applyFx, advance, clockStr, yen, vnd, dow, seasonIdx, addLog, save, isNewYear, year } from './state.js';
+import { G, MIDNIGHT, RATE, applyFx, advance, clockStr, yen, vnd, dow, seasonIdx, addLog, save, isNewYear, year, luckP, addBuff } from './state.js';
 import { studyJapanese } from './quiz.js';
 import { canRegister, register, nextSessionText } from './exam.js';
 import { applyPR } from './career.js';
@@ -132,9 +132,10 @@ const PLACES = {
     actions: (S) => {
       const a = [
         { label: '🎴 Rút quẻ omikuji', cost: 100, minutes: 10, cond: (s) => (s.today.omikuji ? 'Mỗi ngày rút một lần thôi' : null), run: omikuji },
+        { label: '🧧 Mua bùa omamori (お守り)', sub: '¥800 · 🍀 may mắn +8 trong 1 tháng', cost: 800, minutes: 10, cond: (s) => (s.buffs && s.buffs.omamori && s.buffs.omamori.until >= s.day ? 'Bùa cũ vẫn còn hiệu lực' : null), after: (s) => addBuff(s, 'omamori', { luck: 8, until: s.day + 7 }), res: 'Bùa 開運 (khai vận) đỏ thắm. Người Nhật thường thay bùa mới mỗi năm và trả bùa cũ về đền.' },
         { label: '🙏 Cầu nguyện', sub: 'Thả đồng 5¥', cost: 5, minutes: 10, fx: { mood: 3 }, cond: (s) => (s.today.pray ? 'Hôm nay đã cầu rồi' : null), after: (s) => { s.today.pray = true; }, res: 'Đồng 5 yên (五円, go-en) đồng âm với ご縁 — "duyên lành". Người Nhật hay thả đồng 5 yên khi cầu nguyện.' },
       ];
-      if (isNewYear(S)) a.unshift({ label: '⛩️ Đi lễ đầu năm (初詣)', minutes: 60, cost: 500, fx: { mood: 14, health: 2 }, after: (s) => { s.flags.hatsu = year(s); }, res: 'Bạn xếp hàng cùng mọi người, cầu cho gia đình bình an và năm mới may mắn. 「あけましておめでとうございます！」' });
+      if (isNewYear(S)) a.unshift({ label: '⛩️ Đi lễ đầu năm (初詣)', minutes: 60, cost: 500, fx: { mood: 14, health: 2 }, after: (s) => { s.flags.hatsu = year(s); applyFx(s, { luck: 5 }); }, res: 'Bạn xếp hàng cùng mọi người, cầu cho gia đình bình an và năm mới may mắn. 「あけましておめでとうございます！」' });
       return a;
     },
   },
@@ -402,12 +403,12 @@ async function omikuji(S) {
   S.today.omikuji = true;
   pay(S, 100, 'other', 'Omikuji');
   advance(S, 10);
-  const r = Math.random();
+  const r = 1 - luckP(S, 1 - Math.random(), true);
   let title, text, fx;
-  if (r < 0.15) { title = '大吉 — Đại cát!'; text = 'Quẻ tốt nhất! Mọi việc hanh thông.'; fx = { mood: 10 }; }
+  if (r < 0.15) { title = '大吉 — Đại cát!'; text = 'Quẻ tốt nhất! Mọi việc hanh thông. 🍀 May mắn +5 hôm nay.'; fx = { mood: 10 }; addBuff(S, 'kuji', { luck: 5, until: S.day }); }
   else if (r < 0.55) { title = '吉 — Cát'; text = 'Quẻ tốt. Cứ chăm chỉ là sẽ có kết quả.'; fx = { mood: 5 }; }
   else if (r < 0.85) { title = '小吉 — Tiểu cát'; text = 'Có chút may mắn nhỏ. Chú ý sức khỏe.'; fx = { mood: 2 }; }
-  else { title = '凶 — Hung'; text = 'Quẻ xấu… Người Nhật buộc quẻ xấu lên giá ở đền để "gửi lại" vận xui. Bạn cũng làm vậy và thấy nhẹ nhõm.'; fx = { mood: -1 }; }
+  else { title = '凶 — Hung'; text = 'Quẻ xấu… Người Nhật buộc quẻ xấu lên giá ở đền để "gửi lại" vận xui. Bạn cũng làm vậy và thấy nhẹ nhõm.'; fx = { mood: -1 }; addBuff(S, 'kuji', { luck: -3, until: S.day }); }
   const out = applyFx(S, fx);
   out.unshift(['money', -100]);
   await modal({ who: 'おみくじ', title, text, html: chips(out) });
@@ -426,7 +427,8 @@ async function remit(S, illegal) {
   if (!v) return;
   pay(S, v + fee, 'remit', illegal ? 'Chuyển tiền qua kênh không phép' : `Chuyển tiền về nhà (phí ${fee}¥)`);
   advance(S, 20);
-  if (illegal && Math.random() < 0.22) {
+  if (illegal) { applyFx(S, { luck: -3 }); S.fin.shady = (S.fin.shady || 0) + 1; S.fin.credit = Math.max(300, (S.fin.credit || 600) - 8); }
+  if (illegal && Math.random() < luckP(S, 0.22, false)) {
     const out = applyFx(S, { mood: -18 });
     out.unshift(['money', -v]);
     addLog(S, `Mất ${yen(v)} khi chuyển tiền chui`);

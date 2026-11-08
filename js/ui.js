@@ -8,12 +8,17 @@ const $ = (id) => document.getElementById(id);
 export const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 
 let current = null;
+export const typing = (e) => !!(e && e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName));
 document.addEventListener('keydown', (e) => {
   if (!current || e.repeat) return;
+  if (typing(e) && e.code !== 'Escape') return; // đang gõ trong ô nhập: không coi phím số là chọn đáp án
   current.onKey(e);
 });
 
 export const modalOpen = () => !!current;
+// Giá trị các ô nhập (có thuộc tính name) trong hộp thoại vừa đóng
+let lastForm = {};
+export const formValues = () => lastForm;
 
 /**
  * Hộp thoại có lựa chọn. Trả về value của lựa chọn (hoặc chỉ số).
@@ -43,6 +48,7 @@ export function modal(o) {
     const pick = (i) => {
       const c = choices[i];
       if (!c || c.disabled) return;
+      lastForm = Object.fromEntries([...card.querySelectorAll('[name]')].map((el) => [el.name, el.type === 'checkbox' ? el.checked : el.value]));
       card.removeEventListener('click', onClick);
       current = null;
       m.hidden = true;

@@ -10,6 +10,7 @@ import { pay } from './finance.js';
 import { TS } from './pixel.js';
 import { BUILDINGS, parseUnit } from './content/units.js';
 import { myPlace } from './jobs.js';
+import { hackOn } from './hackflag.js';
 
 const DISTRICTS = { town: 'Thị trấn Hikari', shotengai: 'Phố Kawabata (vui chơi, mua sắm)', jutaku: 'Khu dân cư Hikari-dai', minato: 'Khu công nghiệp Minato' };
 const ICON = {
@@ -122,16 +123,29 @@ async function travelMenu(S, mid, dest) {
   const busOk = hour >= 6 && hour < 22;
   const bus = same ? { cost: 220, min: 15 } : { cost: 420, min: 40 };
   const taxi = same ? { cost: 1500, min: 5 } : { cost: 3200, min: 15 };
+  // đi bộ "tới ngay": thời gian đúng như đi bộ thật (tốc độ đi bộ ~62 px/giây, 1 giây = 1,2 phút trong game)
+  const train = from === 'minato' || mid === 'minato';
+  const here = curMap(S).outdoor ? S.pos : null;
+  const walkMin = same && here ? Math.max(3, Math.round(Math.hypot(dest.x - here.x, dest.y - here.y) * 1.35 * 1.2 / 62)) : same ? 12 : 30;
   const v = await modal({
     who: 'Đi tới', title: `📍 ${esc(dest.name)}`, text: same ? 'Cùng khu với bạn.' : `Ở ${DISTRICTS[mid]} — bạn đang ở ${DISTRICTS[from]}.`,
     choices: [
-      { label: same ? '🚶 Tự đi bộ tới' : '🚶 Đi bộ tới chỗ chuyển khu', sub: same ? 'Miễn phí · nhân vật tự đi, bấm phím di chuyển để dừng' : from !== 'minato' && mid !== 'minato' ? 'Đi hết con đường (hoặc qua cầu) là sang khu bên cạnh' : 'Đi tới ga tàu (¥200 / chuyến)', value: 'walk' },
+      ...(hackOn(S) ? [{ label: '🛠️ Dịch chuyển tức thời', sub: 'Chế độ hack · không tốn tiền, không tốn thời gian', value: 'hack' }] : []),
+      { label: `🚶 Đi bộ — tới ngay · ${walkMin} phút`, sub: 'Miễn phí · bỏ qua đoạn đường, thời gian trôi như đi bộ thật', value: 'fast', disabled: train, reason: 'Khác khu phải đi tàu — chọn xe buýt + tàu' },
+      { label: same ? '🚶 Tự đi bộ tới (xem đường)' : '🚶 Đi bộ tới chỗ chuyển khu', sub: same ? 'Miễn phí · nhân vật tự đi nhanh, bấm phím di chuyển để dừng' : !train ? 'Đi hết con đường (hoặc qua cầu) là sang khu bên cạnh' : 'Đi tới ga tàu (¥200 / chuyến)', value: 'walk' },
       { label: `🚌 Xe buýt${same ? '' : ' + tàu'} · ${yen(bus.cost)} · ${bus.min} phút`, value: 'bus', disabled: !busOk || S.money < bus.cost, reason: !busOk ? 'Xe buýt chạy 06:00–22:00' : 'Không đủ tiền' },
       { label: `🚕 Taxi · ${yen(taxi.cost)} · ${taxi.min} phút`, value: 'taxi', disabled: S.money < taxi.cost, reason: 'Không đủ tiền' },
       { label: '← Quay lại', value: null, cancel: true },
     ],
   });
   if (!v) return false;
+  if (v === 'hack') { await teleportTo(S, mid, dest.x, dest.y); toast(`🛠️ Đã tới ${dest.name}`); return true; }
+  if (v === 'fast') {
+    advance(S, walkMin);
+    await teleportTo(S, mid, dest.x, dest.y);
+    toast(`🚶 Đi bộ ${walkMin} phút — đã tới ${dest.name}`);
+    return true;
+  }
   if (v === 'walk') {
     await leaveToOutdoor(S);
     const M = curMap(S);

@@ -40,13 +40,29 @@ export const STAT_INFO = {
   soc: { label: 'Giao tiếp', icon: '🗣️' },
   cook: { label: 'Nấu ăn', icon: '🍳' },
   stress: { label: 'Căng thẳng', icon: '😣' },
+  luck: { label: 'May mắn', icon: '🍀' },
 };
-// Chỉ số phụ (0–100): tăng chậm dần khi đã cao
-export const ATTR_KEYS = ['fit', 'int', 'look', 'soc', 'cook', 'stress'];
+// Chỉ số phụ (0–100): tăng chậm dần khi đã cao (trừ căng thẳng, may mắn)
+export const ATTR_KEYS = ['fit', 'int', 'look', 'soc', 'cook', 'stress', 'luck'];
+const NO_DIMINISH = ['stress', 'luck'];
 export function ensureAttr(S) {
   if (!S.attr) S.attr = { fit: 35, int: 25 + 6 * (S.certs || []).filter((c) => c.type === 'JLPT').length, look: 30, soc: 25, cook: 20, stress: 30 };
+  if (S.attr.luck == null) S.attr.luck = 35 + Math.floor(Math.random() * 31);
   return S.attr;
 }
+// May mắn hiệu lực = gốc + bùa / quẻ còn hạn
+export function luckOf(S) {
+  const A = ensureAttr(S);
+  let v = A.luck;
+  for (const b of Object.values(S.buffs || {})) if (b.luck && b.until >= S.day) v += b.luck;
+  return Math.max(0, Math.min(100, v));
+}
+// Đẩy xác suất theo may mắn: good = chuyện tốt (tăng khi may), bad = chuyện xấu (giảm khi may)
+export function luckP(S, p, good) {
+  const k = (luckOf(S) - 50) / 150;
+  return Math.max(0, Math.min(1, p * (good ? 1 + k : 1 - k)));
+}
+export function addBuff(S, id, b) { S.buffs = S.buffs || {}; S.buffs[id] = b; }
 const BOUNDED = ['health', 'energy', 'mood', 'full', 'rep'];
 
 const newCareer = (day = 1) => ({ visa: 'tts1', start: day, end: day + YEAR_DAYS, passed: {}, tried: {}, ssw1Start: null, history: [{ visa: 'tts1', day }], notified: null });
@@ -163,7 +179,7 @@ export function applyFx(S, fx) {
     if (ATTR_KEYS.includes(k)) {
       const A = ensureAttr(S), before = A[k];
       // tăng: càng cao càng chậm (trừ căng thẳng); giảm: trực tiếp
-      const d = v > 0 && k !== 'stress' ? v * Math.max(0.15, 1 - before / 115) : v;
+      const d = v > 0 && !NO_DIMINISH.includes(k) ? v * Math.max(0.15, 1 - before / 115) : v;
       A[k] = Math.max(0, Math.min(100, before + d));
       if (Math.abs(A[k] - before) >= 0.1) out.push([k, A[k] - before]);
       continue;

@@ -153,4 +153,68 @@ export function aiDayStart(S) {
 }
 
 export function pairScore(S, a, b) { return S.world.pairs[pairKey(a, b)] || 0; }
+
+// ---------- ai đang ở cùng ai ----------
+// Quan hệ của a với b, nhìn từ phía a (vợ/chồng, người nhà, đồng nghiệp, bạn thân, đang giận…)
+export function relLabel(S, a, b) {
+  const A = PEOPLE[a], B = PEOPLE[b];
+  if (!A || !B) return '';
+  if (A.spouse === b) return B.gender === 'm' ? 'chồng' : 'vợ';
+  const H = A.household;
+  if (H && H.members && H.members.includes(b)) return 'người nhà';
+  if (B.spouseOf === a || A.spouseOf === b) return B.gender === 'm' ? 'chồng' : 'vợ';
+  if (B.exOf === a || A.exOf === b) return B.gender === 'm' ? 'chồng cũ' : 'vợ cũ';
+  const sc = pairScore(S, a, b);
+  if (sc >= 75) return 'rất thân, có tin đồn hẹn hò';
+  if (sc >= 45) return 'bạn thân';
+  if (sc <= -35) return 'đang giận nhau';
+  if (A.job && B.job && A.job.place === B.job.place) return 'đồng nghiệp';
+  if (A.home && A.home === B.home && A.home !== 'home_jp') return 'ở cùng chỗ';
+  return '';
+}
+// Người đang ở cùng chỗ với id ngay lúc này (đã thức). Con cái (chỉ là thông tin) tính theo giờ đi học.
+export function companions(S, id) {
+  const d = PEOPLE[id];
+  if (!d || !d.traits) return [];
+  const st = stateOf(S, id);
+  if (!st.place) return [];
+  const out = ids().filter((x) => x !== id && stateOf(S, x).place === st.place && stateOf(S, x).act !== 'sleep')
+    .map((x) => ({ id: x, rel: relLabel(S, id, x) }));
+  const H = d.household;
+  if (H && st.place === d.home) {
+    const h = Math.floor(S.time / 60) % 24, school = dow(S) < 5 && h >= 8 && h < 16;
+    for (const k of H.kids || []) {
+      const age = Math.floor((S.day - k.born) / 84);
+      if (age >= 23) continue;
+      const out2 = age >= 6 && age <= 18 && school;
+      if (!out2 && !(h >= 22 || h < 7)) out.push({ kid: true, label: `${k.g === 'm' ? 'con trai' : 'con gái'} ${age} tuổi` });
+    }
+  }
+  // ưu tiên: người nhà → người quen → quan hệ mạnh
+  const w = (c) => (c.kid ? 3 : 0) + (['chồng', 'vợ', 'người nhà'].includes(c.rel) ? 4 : 0) + (S.npc && S.npc[c.id] && S.npc[c.id].met ? 2 : 0) + (c.rel ? 1 : 0);
+  return out.sort((a, b) => w(b) - w(a));
+}
+// Chuỗi ngắn: "Takeshi-san (chồng), con gái 16 tuổi, Kenta (đồng nghiệp) +3 người lạ"
+export function companionsText(S, id, max = 4) {
+  const list = companions(S, id);
+  if (!list.length) return '';
+  const shown = [], strangers = [];
+  for (const c of list) {
+    if (c.kid) { shown.push(c.label); continue; }
+    const met = S.npc && S.npc[c.id] && S.npc[c.id].met;
+    if (met || ['chồng', 'vợ', 'người nhà', 'chồng cũ', 'vợ cũ'].includes(c.rel)) shown.push(`${PEOPLE[c.id].name}${c.rel ? ` (${c.rel})` : ''}`);
+    else strangers.push(c);
+  }
+  const extra = shown.length > max ? shown.length - max : 0;
+  const s = shown.slice(0, max).join(', ');
+  const more = extra + strangers.length;
+  return `${s}${more ? `${s ? ' ' : ''}+${more} người${strangers.length && !extra ? ' khác' : ''}` : ''}`;
+}
+// 3 quan hệ mạnh nhất của một NPC (để hiện trong danh bạ)
+export function topRelations(S, id, n = 3) {
+  return ids().filter((x) => x !== id).map((x) => ({ x, rel: relLabel(S, id, x), sc: pairScore(S, id, x) }))
+    .filter((r) => r.rel && (Math.abs(r.sc) >= 35 || ['chồng', 'vợ', 'người nhà', 'chồng cũ', 'vợ cũ'].includes(r.rel)))
+    .sort((a, b) => Math.abs(b.sc) + (['chồng', 'vợ'].includes(b.rel) ? 200 : 0) - Math.abs(a.sc) - (['chồng', 'vợ'].includes(a.rel) ? 200 : 0))
+    .slice(0, n).map((r) => `${PEOPLE[r.x].name} (${r.rel})`);
+}
 export { mapOf };

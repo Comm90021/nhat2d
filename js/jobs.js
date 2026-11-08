@@ -1,6 +1,6 @@
 // Nghề nghiệp (v3.3): thị trường việc làm, ứng tuyển, phỏng vấn, thử việc, thăng chức, nghỉ việc, thất nghiệp,
 // chứng chỉ nghề, trường nghề. Ràng buộc theo tư cách lưu trú (đơn giản hóa từ quy định thực tế ⚠️).
-import { yen, addLog, applyFx, clamp, jpLevel, bestCert } from './state.js';
+import { yen, addLog, applyFx, clamp, jpLevel, bestCert, luckOf } from './state.js';
 import { JOBS } from './data.js';
 import { COMPANY } from './content/companies.js';
 import { modal, chips, toast, esc } from './ui.js';
@@ -126,7 +126,7 @@ async function interview(S, role) {
   for (let i = 0; i < 3; i++) { const q = qs[i]; const o = [0, 1, 2, 3].sort(() => Math.random() - 0.5); if (await ask({ ...q, opts: o.map((k) => q.opts[k]), a: o.indexOf(0) }, { who: `Phỏng vấn · Câu ${i + 1}/5`, feedback: 'none' })) ok++; }
   for (let i = 0; i < 2; i++) { const q = pickWork(S, role.job); if (await ask(q, { who: `Phỏng vấn · Câu ${i + 4}/5`, feedback: 'none' })) ok++; }
   const jpBonus = (levelIndex(S.lang) - JP_IDX[(role.req && role.req.jp) || ''] ) * 0.05;
-  const score = ok / 5 * 0.75 + (ref ? 0.2 : 0) + ((S.fin.assets || []).some((a) => a.id === 'interview_suit') ? 0.07 : 0) + Math.max(0, jpBonus) + (S.rep - 50) / 400 + ((S.attr ? S.attr.soc : 25) - 30) / 400 + ((S.attr ? S.attr.look : 30) - 30) / 600;
+  const score = ok / 5 * 0.75 + (ref ? 0.2 : 0) + ((S.fin.assets || []).some((a) => a.id === 'interview_suit') ? 0.07 : 0) + Math.max(0, jpBonus) + (S.rep - 50) / 400 + ((S.attr ? S.attr.soc : 25) - 30) / 400 + ((S.attr ? S.attr.look : 30) - 30) / 600 + (luckOf(S) - 50) / 800;
   S.time += 120;
   if (score < 0.6) { sfx('bad'); await modal({ who: C.name, title: '📩 Kết quả phỏng vấn', jp: '不採用', text: `Cảm ơn bạn đã ứng tuyển. Lần này công ty chưa thể tuyển bạn. (Trả lời đúng ${ok}/5)<br><span class="dim">Luyện kính ngữ, chuẩn bị 志望動機, có người giới thiệu sẽ dễ hơn.</span>` }); return; }
   sfx('end');

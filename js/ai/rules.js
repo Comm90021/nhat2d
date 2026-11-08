@@ -91,6 +91,26 @@ export const acceptInvite = (tr, aff, mood, busy) => (busy ? 0.05 : sigmoid(0.06
 export const willTalk = (tr, mood) => sigmoid(0.09 * (mood - 22) + 2.5 * (tr.agr - 0.3));
 // hệ số thân thiết nhận được theo tâm trạng
 export const moodGain = (mood) => (mood >= 75 ? 1.4 : mood >= 58 ? 1.15 : mood >= 40 ? 1 : mood >= 25 ? 0.6 : 0.8);
+// ---------- giải thích quyết định (để người chơi hiểu vì sao NPC đồng ý / từ chối) ----------
+export function reasons({ tr, aff = 0, mood = 50, act = '', att = 0 }) {
+  const r = [];
+  if (act === 'work') r.push('💼 đang làm việc');
+  if (act === 'sleep') r.push('💤 đang ngủ');
+  const m = moodOf(mood);
+  if (mood < 40 || mood >= 58) r.push(`${m.icon} đang ${m.name.toLowerCase()} (tâm trạng ${Math.round(mood)})`);
+  r.push(aff < 15 ? 'mới quen' : aff < 40 ? 'quen biết' : aff < 70 ? 'đã thân' : 'rất thân');
+  if (att >= 50) r.push('💗 có rung động với bạn');
+  if (tr) {
+    if (tr.ext < 0.35) r.push('tính hướng nội'); else if (tr.ext > 0.7) r.push('tính hướng ngoại');
+    if (tr.agr > 0.72) r.push('dễ tính'); else if (tr.agr < 0.35) r.push('khó tính');
+  }
+  return r.join(' · ');
+}
+export const chanceWord = (p) => (p >= 0.8 ? 'rất dễ' : p >= 0.55 ? 'dễ' : p >= 0.3 ? 'khó' : 'rất khó');
+// Quyết định nhất quán trong ngày: cùng người, cùng việc → cùng con xúc xắc. Điều kiện tốt lên (quà, tâm trạng) thì dễ đồng ý hơn,
+// nhưng hỏi đi hỏi lại không đổi được kết quả.
+export const dayRoll = (S, id, action) => rnd(S.world ? S.world.seed : 0, S.day, id, action);
+
 // NPC trả nợ đúng hạn
 export const repayChance = (tr, moneyStress) => sigmoid(3 * (tr.con - 0.4) - 2 * (moneyStress - 0.4) + 1.2 * (tr.agr - 0.5));
 // quan hệ giữa hai NPC trôi theo tính cách hai người
